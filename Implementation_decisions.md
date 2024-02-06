@@ -1,4 +1,4 @@
-We treat the canvas as several abstratc layers on top of each other.
+We treat the canvas as several abstract layers on top of each other.
 
 Only one layer is the ink layer which stores the points as a result of drawing on the canvas.
 
