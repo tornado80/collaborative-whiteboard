@@ -53,7 +53,9 @@ Steps:
 
 Post-condition: The last action of this specific user is undoed.
 
-> Each user have their own undo history
+> Each user have their own undo history and history is preserved only for the current session
+
+> Once the session is closed, the Undo/Redo history is deleted
 
 ### Redo an action
 Actors: User
@@ -65,7 +67,9 @@ Steps:
 
 Post-condition: The previosuly undoed action is redoed.
 
-> Each user have their own undo history
+> Each user have their own undo history and history is preserved only for the current session
+
+> Once the session is closed, the Undo/Redo history is deleted
 
 ### List of active users of the (current) whiteboard
 Actors: User
@@ -211,11 +215,40 @@ Post-condition: Image is not in the same place that is used to be :D
 
 > Other users can observe the moving immediately, i.e. they should see the trace of moving even before the mover has not finished with the placement.
 
-### Comment on an image object
+### Comment on a canvas object
+Actor: User
+
+Pre-condition: User has joined or created a whiteboard
+
+Steps:
+1. User selects the comment tool by clicking the comment button on the toolbar.
+2. User clicks on a canvas object
+3. User is prompted for comment text
+4. User enters the text and clicks on comment button
+
+Post-condition: A comment icon appears on the object.
+
 > Comment should get automatically removed when the parent image is removed
 
-### Remove a comment on image
+### View comment on the canvas
+Actor: User
 
+Pre-condition: User has joined or created a whiteboard
+
+Steps:
+1. User clicks on the comment icon visible on the canvas object
+
+Post-condition: Comment text appears on the right side bar
+
+### Remove a comment on image
+Actor: User
+
+Pre-condition: User has joined or created a whiteboard and opened a comment
+
+Steps:
+1. User clicks on the resolve button next to the comment
+
+Post-condition: comment side bar closes and the comment icon disappears from the canvas
 
 ## Export board feature
 
