@@ -18,6 +18,7 @@ Sharing the board should be easy.
 
 ## Security
 1. Joining the session should not be possible without knowing the session id
+>> Whiteboard URL as the session ID should be hard to guess
 2. Communication is encrypted
 
 ## Scalability
