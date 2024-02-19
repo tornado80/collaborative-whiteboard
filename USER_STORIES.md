@@ -270,3 +270,5 @@ Post-condition: File download is initiated and user can choose the location to s
 ### Giving a title to whiteboard
 
 ### Retain undo history when they rejoin/reopen the session
+
+### User can disable receiving/rendering intermediate results
