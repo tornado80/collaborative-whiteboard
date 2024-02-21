@@ -1,6 +1,18 @@
 # WhiteBoardC
 
 
+## How to run
+Use the following command run this project in development mode
+```sh
+docker compose up
+```
+
+You can access the frontend at [http://localhost:3000](http://localhost:3000).
+
+THe frontend automatically restarts upon changes to source files, but it does not install any new npm packages. To install newly-added packages, you need to rebuid the container. You can rebuild the container images with:
+```sh
+docker compose up --build
+```
 
 ## Getting started
 
