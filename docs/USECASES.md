@@ -272,3 +272,11 @@ Post-condition: File download is initiated and user can choose the location to s
 ### Retain undo history when they rejoin/reopen the session
 
 ### User can disable receiving/rendering intermediate results
+
+### OAuth
+
+### User Authentication Token in the messages?!
+
+### Ask board deletion
+
+### session token and user ID are given in response to http request or welcome message

@@ -1,0 +1,289 @@
+asyncapi: 3.0.0
+info:
+  title: Collaborative Whiteboard
+  version: 1.0.0
+  description: |-
+    A collaborative whiteboard is a shared digital whiteboard that allows multiple users to draw, write, and erase content in real-time. 
+    This API allows you to manage the whiteboard and its content.
+defaultContentType: application/json
+servers:
+  scram-connections:
+    host: test.mykafkacluster.org:18092
+    protocol: kafka-secure
+    description: Test broker secured with scramSha256
+    security:
+      - $ref: '#/components/securitySchemes/saslScram'
+    tags:
+      - name: env:test-scram
+        description: >-
+          This environment is meant for running internal tests through
+          scramSha256
+      - name: kind:remote
+        description: This server is a remote server. Not exposed by the application
+      - name: visibility:private
+        description: This resource is private and only available to certain users
+  mtls-connections:
+    host: test.mykafkacluster.org:28092
+    protocol: kafka-secure
+    description: Test broker secured with X509
+    security:
+      - $ref: '#/components/securitySchemes/certs'
+    tags:
+      - name: env:test-mtls
+        description: This environment is meant for running internal tests through mtls
+      - name: kind:remote
+        description: This server is a remote server. Not exposed by the application
+      - name: visibility:private
+        description: This resource is private and only available to certain users
+channels:
+  root:
+    address: /
+    messages:
+      reservationProposed:
+        $ref: '#/components/messages/reservationProposed'
+  lightingMeasured:
+    address: smartylighting.streetlights.1.0.event.{streetlightId}.lighting.measured
+    messages:
+      lightMeasured:
+        $ref: '#/components/messages/lightMeasured'
+    description: The topic on which measured values may be produced and consumed.
+    parameters:
+      streetlightId:
+        $ref: '#/components/parameters/streetlightId'
+  lightTurnOn:
+    address: smartylighting.streetlights.1.0.action.{streetlightId}.turn.on
+    messages:
+      turnOn:
+        $ref: '#/components/messages/turnOnOff'
+    parameters:
+      streetlightId:
+        $ref: '#/components/parameters/streetlightId'
+  lightTurnOff:
+    address: smartylighting.streetlights.1.0.action.{streetlightId}.turn.off
+    messages:
+      turnOff:
+        $ref: '#/components/messages/turnOnOff'
+    parameters:
+      streetlightId:
+        $ref: '#/components/parameters/streetlightId'
+  lightsDim:
+    address: smartylighting.streetlights.1.0.action.{streetlightId}.dim
+    messages:
+      dimLight:
+        $ref: '#/components/messages/dimLight'
+    parameters:
+      streetlightId:
+        $ref: '#/components/parameters/streetlightId'
+operations:
+  receiveLightMeasurement:
+    action: receive
+    channel:
+      $ref: '#/channels/lightingMeasured'
+    summary: >-
+      Inform about environmental lighting conditions of a particular
+      streetlight.
+    traits:
+      - $ref: '#/components/operationTraits/kafka'
+    messages:
+      - $ref: '#/channels/lightingMeasured/messages/lightMeasured'
+  turnOn:
+    action: send
+    channel:
+      $ref: '#/channels/lightTurnOn'
+    traits:
+      - $ref: '#/components/operationTraits/kafka'
+    messages:
+      - $ref: '#/channels/lightTurnOn/messages/turnOn'
+  turnOff:
+    action: send
+    channel:
+      $ref: '#/channels/lightTurnOff'
+    traits:
+      - $ref: '#/components/operationTraits/kafka'
+    messages:
+      - $ref: '#/channels/lightTurnOff/messages/turnOff'
+  dimLight:
+    action: send
+    channel:
+      $ref: '#/channels/lightsDim'
+    traits:
+      - $ref: '#/components/operationTraits/kafka'
+    messages:
+      - $ref: '#/channels/lightsDim/messages/dimLight'
+components:
+  messages:
+    reservationProposed:
+      payload:
+        $ref: '#/components/schemas/reservationProposedPayload'
+    reservationCancellationRequested:
+      payload:
+        $ref: '#/components/schemas/reservationCancellationRequestedPayload'
+    reservationCancelled:
+      payload:
+        $ref: '#/components/schemas/reservationCancelledPayload'
+    reservationExpired:
+      payload:
+        $ref: '#/components/schemas/reservationExpiredPayload'
+    canvasObjectReserved:
+      payload:
+        $ref: '#/components/schemas/canvasObjectReservedPayload'
+    reservationProposalSucceeded:
+      payload:
+        $ref: '#/components/schemas/reservationProposalSucceededPayload'
+    reservationProposalFailed:
+      payload:
+        $ref: '#/components/schemas/reservationProposalFailedPayload'
+    userJoined:
+      payload:
+        $ref: '#/components/schemas/userPayload'
+    userLeft:
+      payload:
+        $ref: '#/components/schemas/userPayload'
+    welcomeUser:
+      payload:
+        $ref: '#/components/schemas/welcomeUserPayload'
+    boardUpdateProposed:
+      payload:
+        $ref: '#/components/schemas/boardUpdateProposedPayload'
+    boardUpdated:
+      payload:
+        $ref: '#/components/schemas/boardUpdatedPayload'
+    boardUpdateFailed:
+      payload:
+        $ref: '#/components/schemas/boardUpdateFailedPayload'
+  schemas:
+    boardUpdateProposedPayload:
+      type: object
+      properties:
+        updateId:
+          type: integer
+          description: Unique identifier of the update request
+        update: object
+        intermediate:
+          type: boolean
+          description: Indicates if the update is intermediate
+    boardUpdatedPayload:
+      type: object
+      properties:
+        updateId:
+          type: integer
+          description: Unique identifier of the update request
+        update: object
+        userId:
+          type: integer
+          description: Unique identifier of the user who made the update
+        intermediate:
+          type: boolean
+          description: Indicates if the update is intermediate
+    boardUpdateFailedPayload:
+      type: object
+      properties:
+        errorMessage:
+          type: string
+        updateId:
+          type: integer
+          description: Unique identifier of the update request
+    welcomeUserPayload:
+      type: object
+      properties:
+        userId:
+          type: integer
+          decription: User unique identifier
+        sessionToken:
+          type: string
+          description: Secret session token allocated to the user
+    userPayload:
+      type: object
+      properties:
+        userId:
+          type: integer
+          decription: User unique identifier
+    reservationProposedPayload:
+      type: object
+      properties:
+        canvasObjectId:
+          type: integer
+          description: Canvas object unique identifier
+        proposalId:
+          type: integer
+          description: Proposal request uniques identifier that will be used in server reply
+    canvasObjectReservedPayload:
+      type: object
+      properties:
+        canvasObjectId:
+          type: integer
+          description: Canvas object unique identifier
+        reservationId:
+          type: integer
+          description: Reservation unique identifier
+        userId:
+          type: integer
+          description: Indicates unique identifier of the user who reserved the canvas object
+        expirationTimestamp:
+          type: long
+          description: Indicates when the reservation will expire
+    reservationProposalSucceededPayload:
+      type: object
+      properties:
+        reservationId:
+          type: integer
+          description: Reservation unique identifier
+        proposalId:
+          type: integer
+          description: Proposal request unique identifier that was used in client request
+        expirationTimestamp:
+          type: long
+          description: Indicates when the reservation will expire
+    reservationProposalFailedPayload:
+      type: object
+      properties:
+        errorMessage:
+          type: string
+        proposalId:
+          type: integer
+          description: Proposal request unique identifier that was used in client request
+    reservationCancellationRequestedPayload:
+      type: object
+      properties:
+        reservationId:
+          type: integer
+          description: Reservation unique identifier
+    reservationCancelledPayload:
+      type: object
+      properties:
+        reservationId:
+          type: integer
+          description: Reservation unique identifier
+    reservationExpiredPayload:
+      type: object
+      properties:
+        reservationId:
+          type: integer
+          description: Reservation unique identifier
+  securitySchemes:
+    saslScram:
+      type: scramSha256
+      description: Provide your username and password for SASL/SCRAM authentication
+    certs:
+      type: X509
+      description: Download the certificate files from service provider
+  parameters:
+    streetlightId:
+      description: The ID of the streetlight.
+  messageTraits:
+    commonHeaders:
+      headers:
+        type: object
+        properties:
+          my-app-header:
+            type: integer
+            minimum: 0
+            maximum: 100
+  operationTraits:
+    kafka:
+      bindings:
+        kafka:
+          clientId:
+            type: string
+            enum:
+              - my-app-id

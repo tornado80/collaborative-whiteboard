@@ -11,7 +11,7 @@
     response: objectID
 > Server to Client
 
-4. Client Reservation
+4. Cancel Reservation
     request: objectID
 
 > CLient to Server
