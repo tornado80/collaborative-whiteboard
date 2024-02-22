@@ -7,3 +7,5 @@ Other layers correspond to the movable objects (sticky notes, comments, images) 
 A drawing is erased partly not as a whole!
 
 > TODO: Discuss about how to show comments on images and how to model it in our app!
+
+Sticky notes have fixed sizes and their text font will adjust or we use scroll bars and keep a fixed font. 

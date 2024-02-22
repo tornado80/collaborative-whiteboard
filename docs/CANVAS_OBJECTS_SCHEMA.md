@@ -9,7 +9,7 @@
 3. delete
     - objectID
 
-4. draw
+4. free hand draw
     - list of cursor cordinates
     - colour (transparent for eraser)
     - thickness

@@ -280,3 +280,7 @@ Post-condition: File download is initiated and user can choose the location to s
 ### Ask board deletion
 
 ### session token and user ID are given in response to http request or welcome message
+
+### Bezier curves after checkpoint 2
+
+### Resizing sticky notes
