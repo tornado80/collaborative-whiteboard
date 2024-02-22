@@ -289,6 +289,21 @@ components:
             timestamp:
               type: long
               description: Timestamp of the comment
+    updateImage:
+      allOf:
+        - $ref: '#/components/schemas/canvasObjectOperation'
+        - type: object
+          description: To resize or move the image
+          properties:
+            canvasObjectOperationType:
+              const: updateImage
+            canvasObjectId:
+              type: integer
+              description: Unique identifier of the canvas object
+            position:
+              $ref: '#/components/schemas/vec2'
+            width:
+              type: integer
     deleteStickyNote:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
