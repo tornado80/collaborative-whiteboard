@@ -8,123 +8,219 @@ info:
 paths:
   /api/rest/boards:
     post:
-      tags:
-        - board
-      description: Create a new board
       responses:
         '200':
-          description: successful operation
+          description: New board with the returned id is created
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  id:
+                  boardId:
                     type: string
                     format: uuid
                     example: 123e4567-e89b-12d3-a456-426614174000
-        '400':
-          description: Invalid input
   /api/rest/boards/{boardId}:
     parameters:
       - name: boardId
         in: path
         required: true
-        description: ID of the whiteboard to retrieve
         schema:
           type: string
           format: uuid
-      - in: path
-          name: sessionToken
-          schema:
-            type: integer
-            required: true
-            description: Session token for authentication 
-
+      - name: Session-Token
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
     get:
-      tags:
-        - board
-      description: Get the current state of the whiteboard
-      operationId: getBoardById
       responses:
         '200':
-          description: successful operation
+          description: Current board state is returned
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                    example: 123e4567-e89b-12d3-a456-426614174000
-                  content:
-                    type: string
-                    example: '{"objects":[{"type":"line","x1":10,"y1":10,"x2":100,"y2":100,"color":"#000000","width":2}]}'
-        '400':
-          description: Invalid input
-  /api/rest/image:
-    parameters:
-      - in: path
-            name: sessionToken
-            schema:
-              type: integer
-              required: true
-              description: Session token for authentication
+                $ref: '#/components/schemas/Board'
+  /api/rest/blob:
     post:
-      tags:
-        - board
-      summary: Update the content of the whiteboard
-      description: Update the content of the whiteboard
-      operationId: updateBoard
+      parameters:
+        - name: Session-Token
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
       requestBody:
-        description: The new content of the whiteboard
         content:
-          application/json:
+          image/*:
             schema:
-              type: object
-              properties:
-                content:
-                  type: string
-                  example: '{"objects":[{"type":"line","x1":10,"y1":10,"x2":100,"y2":100,"color":"#000000","width":2}]}'
+              type: string
+              format: binary
         required: true
       responses:
         '200':
-          description: successful operation
+          description: An image blob is created with the returned id
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  id:
+                  blobId:
                     type: string
                     format: uuid
                     example: 123e4567-e89b-12d3-a456-426614174000
-                  content:
-                    type: string
-                    example: '{"objects":[{"type":"line","x1":10,"y1":10,"x2":100,"y2":100,"color":"#000000","width":2}]}'
-        '400':
-          description: Invalid input
+  /api/rest/blob/{blobId}:
     get:
-      tags:
-        - board
-      summary: Download the image
-      description: download the image
-      operationId: getImage
+      parameters:
+        - name: blobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Session-Token
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: successful operation
+          description: Image blob with the given id is returned
           content:
-            application/json:
+            image/*:
               schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    format: uuid
-                    example: 123e4567-e89b-12d3-a456-426614174000
-                  content:
-                    type: string
-                    example: '{"objects":[{"type":"line","x1":10,"y1":10,"x2":100,"y2":100,"color":"#000000","width":2}]}'
-        '400':
-          description: Invalid input
+                type: string
+                format: binary
+components:
+  schemas:
+    CanvasObject:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000 
+        zindex:
+          type: integer
+          format: int64
+          example: 1000
+        position:
+          $ref: '#/components/schemas/Vector2'
+        canvasObjectType:
+          type: string
+          enum:
+            - StickyNote
+            - Image
+      discriminator:
+        propertyName: canvasObjectType
+      required:
+        - canvasObjectType
+    StickyNote:
+      allOf:
+        - $ref: '#/components/schemas/CanvasObject'
+        - type: object
+          properties:
+            canvasObjectType:
+              type: string
+              enum:
+                - StickyNote
+            text:
+              type: string
+              example: 'This is a sticky note'
+            color:
+              $ref: '#/components/schemas/Color'
+    Image:
+      allOf:
+        - $ref: '#/components/schemas/CanvasObject'
+        - type: object
+          properties:
+            canvasObjectType:
+              type: string
+              enum:
+                - Image
+            comments:
+              type: array
+              items:
+                $ref: '#/components/schemas/Comment'
+            width:
+              type: integer
+              format: int64
+              example: 100
+            size:
+              $ref: '#/components/schemas/Vector2'
+            blobId:
+              type: string
+              format: uuid
+              example: 123e4567-e89b-12d3-a456-426614174000
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        text:
+          type: string
+          example: 'This is a comment'
+        timestamp:
+          type: integer
+          format: int64
+          example: 123456789
+    Vector2:
+      type: object
+      properties:
+        x:
+          type: integer
+          format: int64
+          example: 100
+        y:
+          type: integer
+          format: int64
+          example: 100
+    Board:
+      type: object
+      properties:
+        canvasObjects:
+          type: array
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/StickyNote'
+              - $ref: '#/components/schemas/Image'
+            discriminator:
+              propertyName: canvasObjectType
+        name:
+          type: string
+        canvasMatrix:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/Color'
+        lastChangeId:
+          type: integer
+          format: int64
+        activeUsers:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          example: John Doe
+        color:
+          $ref: '#/components/schemas/Color'
+    Color:
+      type: string
+      example: '#FF0000FF'
