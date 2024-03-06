@@ -34,6 +34,13 @@ paths:
         schema:
           type: string
           format: uuid
+      - in: path
+          name: sessionToken
+          schema:
+            type: integer
+            required: true
+            description: Session token for authentication 
+
     get:
       tags:
         - board
@@ -57,6 +64,13 @@ paths:
         '400':
           description: Invalid input
   /api/rest/image:
+    parameters:
+      - in: path
+            name: sessionToken
+            schema:
+              type: integer
+              required: true
+              description: Session token for authentication
     post:
       tags:
         - board
