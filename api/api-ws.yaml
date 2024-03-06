@@ -103,6 +103,18 @@ operations:
       $ref: '#/channels/root'
     messages:
       - $ref: '#/components/messages/boardUpdated'
+  undoRequested:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/components/messages/undoRequested'
+  redoRequested:
+    action: send
+    channel:
+      $ref: '#/channels/root'
+    messages:
+      - $ref: '#/components/messages/redoRequested'
   boardUpdateProposed:
     action: send
     channel:
@@ -159,7 +171,25 @@ components:
     boardUpdateSucceeded:
       payload:
         $ref: '#/components/schemas/boardUpdateSucceededPayload'
+    undoRequested:
+      payload:
+        $ref: '#/components/schemas/undoRequestPayload'
+    redoRequested:
+      payload:
+        $ref: '#/components/schemas/redoRequestPayload'
   schemas:
+    undoRequestPayload:
+      type: object
+      properties:
+        userId:
+          type: integer
+          description: Unique identifier of the user who requested the undo
+    redoRequestPayload:
+      type: object
+      properties:
+        userId:
+          type: integer
+          description: Unique identifier of the user who requested the redo
     erasePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
@@ -205,8 +235,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: createComment
-            position:
-              $ref: '#/components/schemas/vec2'
             text:
               type: string
               description: Comment text
@@ -254,8 +282,6 @@ components:
             canvasObjectId:
               type: integer
               description: Unique identifier of the canvas object
-            position:
-              $ref: '#/components/schemas/vec2'
             text:
               type: string
               description: Comment text
