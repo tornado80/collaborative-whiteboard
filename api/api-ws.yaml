@@ -10,10 +10,6 @@ channels:
   root:
     address: /api/ws
     messages:
-      draw:
-        $ref: '#/components/messages/draw'
-      erase:
-        $ref: '#/components/messages/erase'
       reservationProposed:
         $ref: '#/components/messages/reservationProposed'
       reservationProposalSucceeded:
@@ -182,13 +178,15 @@ components:
       type: object
       properties:
         userId:
-          type: integer
+          type: string
+          format: uuid
           description: Unique identifier of the user who requested the undo
     redoRequestPayload:
       type: object
       properties:
         userId:
-          type: integer
+          type: string
+          format: uuid
           description: Unique identifier of the user who requested the redo
     erasePayload:
       allOf:
@@ -196,8 +194,11 @@ components:
         - type: object
           description: A list of square centers together with erase size
           properties:
+            canvasObjectOperationType:
+              const: erase
             size:
               type: integer
+              format: int64
               description: Eraser square size
             centers:
               type: array
@@ -208,6 +209,8 @@ components:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
           properties:
+            canvasObjectOperationType:
+              const: draw
             points:
               type: array
               items:
@@ -239,9 +242,10 @@ components:
               type: string
               description: Comment text
             timestamp:
-              type: long
+              type: integer
+              format: int64
               description: Timestamp of the comment
-    createImage:
+    createImagePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -255,7 +259,11 @@ components:
               $ref: '#/components/schemas/vec2'
             width:
               type: integer
-    updateStickyNote:
+              format: int64
+            size:
+              $ref: '#/components/schemas/vec2'
+              description: Image size which can also be inferred from the blob (immutable)
+    updateStickyNotePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -263,7 +271,8 @@ components:
             canvasObjectOperationType:
               const: updateStickyNote
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
             position:
               $ref: '#/components/schemas/vec2'
@@ -272,7 +281,7 @@ components:
               description: Sticky note text
             color:
               $ref: '#/components/schemas/color'
-    updateComment:
+    updateCommentPayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -280,15 +289,17 @@ components:
             canvasObjectOperationType:
               const: updateComment
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
             text:
               type: string
               description: Comment text
             timestamp:
-              type: long
+              type: integer
+              format: int64
               description: Timestamp of the comment
-    updateImage:
+    updateImagePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -297,13 +308,15 @@ components:
             canvasObjectOperationType:
               const: updateImage
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
             position:
               $ref: '#/components/schemas/vec2'
             width:
               type: integer
-    deleteStickyNote:
+              format: int64
+    deleteStickyNotePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -311,9 +324,10 @@ components:
             canvasObjectOperationType:
               const: deleteStickyNote
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
-    deleteImage:
+    deleteImagePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -321,9 +335,10 @@ components:
             canvasObjectOperationType:
               const: deleteImage
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
-    deleteComment:
+    deleteCommentPayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
@@ -331,46 +346,41 @@ components:
             canvasObjectOperationType:
               const: deleteComment
             canvasObjectId:
-              type: integer
+              type: string
+              format: uuid
               description: Unique identifier of the canvas object
     vec2:
       type: object
       properties:
         x:
           type: integer
+          format: int64
           description: X coordinate of the point
         y:
           type: integer
+          format: int64
           description: Y coordinate of the point    
     color:
-      type: object
-      properties:
-        r:
-          type: integer
-          description: Red component of the color
-        g:
-          type: integer
-          description: Green component of the color
-        b:
-          type: integer
-          description: Blue component of the color
-        a: 
-          type: integer
-          description: Alpha component of the color
+      type: string
+      example: '#FF0000FF'
     canvasObjectOperation:
       type: object
       discriminator: canvasObjectOperationType
       properties:
         canvasObjectOperationType:
+          type: string
           enum:
             - createStickyNote
             - createImage
             - createComment
             - updateStickyNote
             - updateComment
+            - updateImage
             - deleteStickyNote
             - deleteImage
             - deleteComment
+            - draw
+            - erase
       required:
         - canvasObjectOperationType
     updatePayload:
@@ -384,29 +394,34 @@ components:
             - stickyNote
             - image
             - comment
-            - draw
-            - erase
+            - canvasMatrix
         operation:
           enum:
             - create
             - update
             - delete
+            - draw
+            - erase
         newValue:
-          $ref: '#/components/schemas/canvasObjectOperation'
+          oneOf:
+            - $ref: '#/components/schemas/createStickyNotePayload'
+            - $ref: '#/components/schemas/createImagePayload'
+            - $ref: '#/components/schemas/createCommentPayload'
+            - $ref: '#/components/schemas/updateStickyNotePayload'
+            - $ref: '#/components/schemas/updateCommentPayload'
+            - $ref: '#/components/schemas/deleteStickyNotePayload'
+            - $ref: '#/components/schemas/deleteImagePayload'
+            - $ref: '#/components/schemas/deleteCommentPayload'
+            - $ref: '#/components/schemas/drawPayload'
+            - $ref: '#/components/schemas/erasePayload'
+          discriminator: canvasObjectOperationType
           description: New or partial (differential) value of the canvas object
-    updatedPayload:
-      allOf:
-        - $ref: '#/components/schemas/updatePayload'
-        - type: object
-          properties:
-            canvasObjectId:
-              type: integer
-              description: Unique identifier of the canvas object
     boardUpdateProposedPayload:
       type: object
       properties:
-        updateId:
-          type: integer
+        proposalId:
+          type: string
+          format: uuid
           description: Unique identifier of the update proposal chosen by the client
         update: 
           $ref: '#/components/schemas/updatePayload'
@@ -416,84 +431,105 @@ components:
     boardUpdateSucceededPayload:
       type: object
       properties:
-        updateId:
-          type: integer
+        proposalId:
+          type: string
+          format: uuid
           description: Unique identifier of the update proposal
         canvasObjectId:
-          type: integer
+          type: string
+          format: uuid
           description: Unique identifier of the canvas object
     boardUpdatedPayload:
-      type: object
-      properties:
-        changeId:
-          type: integer
-          description: Unique monotonically increasing identifier of the change
-        update:
-          $ref: '#/components/schemas/updatedPayload'
-        userId:
-          type: integer
-          description: Unique identifier of the user who made the update
-        intermediate:
-          type: boolean
-          description: Indicates if the update is intermediate
+      allOf:
+        - $ref: '#/components/schemas/updatePayload'
+        - type: object
+          properties:
+            changeId:
+              type: integer
+              format: int64
+              description: Unique monotonically increasing identifier of the change
+            userId:
+              type: string
+              format: uuid
+              description: Unique identifier of the user who made the update
+            intermediate:
+              type: boolean
+              description: Indicates if the update is intermediate
+            canvasObjectId:
+              type: string
+              format: uuid
+              description: Unique identifier of the canvas object
     boardUpdateFailedPayload:
       type: object
       properties:
         errorMessage:
           type: string
-        updateId:
-          type: integer
+        proposalId:
+          type: string
+          format: uuid
           description: Unique identifier of the update proposal
     welcomeUserPayload:
       type: object
       properties:
         userId:
-          type: integer
+          type: string
+          format: uuid
           decription: User unique identifier
         sessionToken:
           type: string
+          format: uuid
           description: Secret session token allocated to the user
     userPayload:
       type: object
       properties:
         userId:
-          type: integer
+          type: string
+          format: uuid
           decription: User unique identifier
     reservationProposedPayload:
       type: object
       properties:
         canvasObjectId:
-          type: integer
+          type: string
+          format: uuid
           description: Canvas object unique identifier
         proposalId:
-          type: integer
+          type: string
+          format: uuid
           description: Proposal request uniques identifier that will be used in server reply
     canvasObjectReservedPayload:
       type: object
       properties:
         canvasObjectId:
-          type: integer
+          type: string
+          format: uuid
           description: Canvas object unique identifier
         reservationId:
-          type: integer
+          type: string
+          format: uuid
           description: Reservation unique identifier
         userId:
-          type: integer
+          type: string
+          format: uuid
           description: Indicates unique identifier of the user who reserved the canvas object
         expirationTimestamp:
-          type: long
+          type: integer
+          format: int64
           description: Indicates when the reservation will expire
     reservationProposalSucceededPayload:
       type: object
       properties:
         reservationId:
-          type: integer
+          type: string
+          format: uuid
           description: Reservation unique identifier
         proposalId:
-          type: integer
+          type: string
+          format: uuid
           description: Proposal request unique identifier that was used in client request
         expirationTimestamp:
-          type: long
+          type: integer
+          format: int64
           description: Indicates when the reservation will expire
     reservationProposalFailedPayload:
       type: object
@@ -501,23 +537,27 @@ components:
         errorMessage:
           type: string
         proposalId:
-          type: integer
+          type: string
+          format: uuid
           description: Proposal request unique identifier that was used in client request
     reservationCancellationRequestedPayload:
       type: object
       properties:
         reservationId:
-          type: integer
+          type: string
+          format: uuid
           description: Reservation unique identifier
     reservationCancelledPayload:
       type: object
       properties:
         reservationId:
-          type: integer
+          type: string
+          format: uuid
           description: Reservation unique identifier
     reservationExpiredPayload:
       type: object
       properties:
         reservationId:
-          type: integer
+          type: string
+          format: uuid
           description: Reservation unique identifier
