@@ -8,5 +8,5 @@
 
 
 ### Views
-i. Front page for board selection "/"
-ii. Board page "/boards/....."
+i. Front page for board selection "/" (browser stored list of boards)
+ii. Board page "/boards/{id}"

@@ -8,7 +8,7 @@ info:
 defaultContentType: application/json
 channels:
   root:
-    address: /
+    address: /api/ws
     messages:
       draw:
         $ref: '#/components/messages/draw'
@@ -43,30 +43,6 @@ channels:
       boardUpdateSucceeded:
         $ref: '#/components/messages/boardUpdateSucceeded'
 operations:
-  sendDraw:
-    action: send
-    channel:
-      $ref: '#/channels/root'
-    messages:
-      - $ref: '#/components/messages/draw'
-  sendErase:
-    action: send
-    channel:
-      $ref: '#/channels/root'
-    messages:
-      - $ref: '#/components/messages/erase'
-  receiveDraw:
-    action: receive
-    channel:
-      $ref: '#/channels/root'
-    messages:
-      - $ref: '#/components/messages/draw'
-  receiveErase:
-    action: receive
-    channel:
-      $ref: '#/channels/root'
-    messages:
-      - $ref: '#/components/messages/erase'
   reservationProposed:
     action: send
     channel:
@@ -141,12 +117,6 @@ operations:
         $ref: '#/channels/root'
 components:
   messages:
-    draw:
-      payload:
-        $ref: '#/components/schemas/drawPayload'
-    erase:
-      payload:
-        $ref: '#/components/schemas/erasePayload'
     reservationProposed:
       payload:
         $ref: '#/components/schemas/reservationProposedPayload'
@@ -191,25 +161,29 @@ components:
         $ref: '#/components/schemas/boardUpdateSucceededPayload'
   schemas:
     erasePayload:
-      type: object
-      description: A list of square centers together with erase size
-      properties:
-        size:
-          type: integer
-          description: Eraser square size
-        centers:
-          type: array
-          items:
-            $ref: '#/components/schemas/vec2'
+      allOf:
+        - $ref: '#/components/schemas/canvasObjectOperation'
+        - type: object
+          description: A list of square centers together with erase size
+          properties:
+            size:
+              type: integer
+              description: Eraser square size
+            centers:
+              type: array
+              items:
+                $ref: '#/components/schemas/vec2'
     drawPayload:
-      type: object
-      properties:
-        points:
-          type: array
-          items:
-            $ref: '#/components/schemas/vec2'
-        color:
-            $ref: '#/components/schemas/color'
+      allOf:
+        - $ref: '#/components/schemas/canvasObjectOperation'
+        - type: object
+          properties:
+            points:
+              type: array
+              items:
+                $ref: '#/components/schemas/vec2'
+            color:
+                $ref: '#/components/schemas/color'
     createStickyNotePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
@@ -243,14 +217,13 @@ components:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
         - type: object
+          description: Position is upper left corner. Only width is needed to keep aspect ratio.
           properties:
             canvasObjectOperationType:
               const: createImage
             name:
               type: string
             position:
-              $ref: '#/components/schemas/vec2'
-            size:
               $ref: '#/components/schemas/vec2'
             width:
               type: integer
@@ -385,6 +358,8 @@ components:
             - stickyNote
             - image
             - comment
+            - draw
+            - erase
         operation:
           enum:
             - create
@@ -406,7 +381,7 @@ components:
       properties:
         updateId:
           type: integer
-          description: Unique identifier of the update request chosen by the client
+          description: Unique identifier of the update proposal chosen by the client
         update: 
           $ref: '#/components/schemas/updatePayload'
         intermediate:
@@ -417,13 +392,16 @@ components:
       properties:
         updateId:
           type: integer
-          description: Unique identifier of the update request
+          description: Unique identifier of the update proposal
         canvasObjectId:
           type: integer
           description: Unique identifier of the canvas object
     boardUpdatedPayload:
       type: object
       properties:
+        changeId:
+          type: integer
+          description: Unique monotonically increasing identifier of the change
         update:
           $ref: '#/components/schemas/updatedPayload'
         userId:
@@ -439,7 +417,7 @@ components:
           type: string
         updateId:
           type: integer
-          description: Unique identifier of the update request
+          description: Unique identifier of the update proposal
     welcomeUserPayload:
       type: object
       properties:
