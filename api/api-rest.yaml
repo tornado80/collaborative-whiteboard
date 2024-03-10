@@ -42,7 +42,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Board'
-  /api/rest/blob:
+  /api/rest/blobs:
     post:
       parameters:
         - name: Session-Token
@@ -53,7 +53,7 @@ paths:
             format: uuid
       requestBody:
         content:
-          image/*:
+          image/png:
             schema:
               type: string
               format: binary
@@ -70,7 +70,7 @@ paths:
                     type: string
                     format: uuid
                     example: 123e4567-e89b-12d3-a456-426614174000
-  /api/rest/blob/{blobId}:
+  /api/rest/blobs/{blobId}:
     get:
       parameters:
         - name: blobId
@@ -89,7 +89,7 @@ paths:
         '200':
           description: Image blob with the given id is returned
           content:
-            image/*:
+            image/png:
               schema:
                 type: string
                 format: binary
