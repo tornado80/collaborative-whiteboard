@@ -1,4 +1,4 @@
--module(board_lookup_service).
+-module(boards_lookup_service).
 -behaviour(gen_server).
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).

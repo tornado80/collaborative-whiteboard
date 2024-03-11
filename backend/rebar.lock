@@ -1,14 +1,25 @@
 {"1.2.0",
 [{<<"cowboy">>,{pkg,<<"cowboy">>,<<"2.11.0">>},0},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"2.12.1">>},1},
+ {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.9">>},1},
+ {<<"gun">>,
+  {git,"https://github.com/ninenines/gun.git",
+       {ref,"ffde92536bc09c4c93a6d93bb24cefef3d9d9095"}},
+  0},
+ {<<"lager">>,
+  {git,"https://github.com/erlang-lager/lager",
+       {ref,"c5447d2d85a0d446d41a79bffe0a6a66bd50c901"}},
+  0},
  {<<"ranch">>,{pkg,<<"ranch">>,<<"1.8.0">>},1}]}.
 [
 {pkg_hash,[
  {<<"cowboy">>, <<"356BF784599CF6F2CDC6AD12FDCFB8413C2D35DAB58404CF000E1FEAED3F5645">>},
  {<<"cowlib">>, <<"A9FA9A625F1D2025FE6B462CB865881329B5CAFF8F1854D1CBC9F9533F00E1E1">>},
+ {<<"goldrush">>, <<"F06E5D5F1277DA5C413E84D5A2924174182FB108DABB39D5EC548B27424CD106">>},
  {<<"ranch">>, <<"8C7A100A139FD57F17327B6413E4167AC559FBC04CA7448E9BE9057311597A1D">>}]},
 {pkg_hash_ext,[
  {<<"cowboy">>, <<"0FA395437F1B0E104E0E00999F39D2AC5F4082AC5049B67A5B6D56ECC31B1403">>},
  {<<"cowlib">>, <<"163B73F6367A7341B33C794C4E88E7DBFE6498AC42DCD69EF44C5BC5507C8DB0">>},
+ {<<"goldrush">>, <<"99CB4128CFFCB3227581E5D4D803D5413FA643F4EB96523F77D9E6937D994CEB">>},
  {<<"ranch">>, <<"49FBCFD3682FAB1F5D109351B61257676DA1A2FDBE295904176D5E521A2DDFE5">>}]}
 ].

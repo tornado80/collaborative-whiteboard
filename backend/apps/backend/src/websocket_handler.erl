@@ -14,14 +14,17 @@ init(Req, State) ->
     {cowboy_websocket, Req, NewState}.
 
 websocket_init(State) ->
+    lager:info("Websocket connection established"),
     {ok, State}.
 
 websocket_handle(Frame = {text, _}, State) ->
-    {[Frame], State};
+    lager:info("Received text frame"),
+    {[{text, io_lib:format("Received text frame: ~p~n", [Frame])}], State};
 websocket_handle(_Frame, State) ->
     {ok, State}.
 
 websocket_info(_ErlangMsg, State) ->
+    lager:info("Received Erlang message"),
     {ok, State}.
 
 % Internals
