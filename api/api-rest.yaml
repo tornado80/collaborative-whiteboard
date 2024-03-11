@@ -179,6 +179,19 @@ components:
           type: integer
           format: int64
           example: 100
+    Curve:
+      type: object
+      properties:
+        canvasObjectType:
+          type: string
+          enum:
+            - Curve
+        points:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vector2'
+        color:
+          $ref: '#/components/schemas/Color'
     Board:
       type: object
       properties:
@@ -188,16 +201,11 @@ components:
             oneOf:
               - $ref: '#/components/schemas/StickyNote'
               - $ref: '#/components/schemas/Image'
+              - $ref: '#/components/schemas/Curve'
             discriminator:
               propertyName: canvasObjectType
         name:
           type: string
-        canvasMatrix:
-          type: array
-          items:
-            type: array
-            items:
-              $ref: '#/components/schemas/Color'
         lastChangeId:
           type: integer
           format: int64
