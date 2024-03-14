@@ -8,7 +8,8 @@
     stdlib,
     cowboy,
     lager,
-    gun
+    jsone,
+    uuid
    ]},
   {env,[]},
   {modules, []},

@@ -1,6 +1,6 @@
 -module(create_board_handler).
 
--export([init/2, allowed_methods/2, content_types_accepted/2, handle_create_board/2]).
+-export([init/2, allowed_methods/2, content_types_accepted/2, handle_create_board/2, content_types_provided/2]).
 
 init(Req, State) ->
     {cowboy_rest, Req, State}.
@@ -10,8 +10,16 @@ allowed_methods(Req, State) ->
 
 content_types_accepted(Req, State) ->
     {[
-        {{<<"application">>, <<"json">>, [{<<"charset">>, <<"utf-8">>}]}, handle_create_board}
+        {{<<"application">>, <<"json">>, []}, handle_create_board}
     ], Req, State}.
 
-handle_create_board(Req, State) ->
-    {true, Req, State}.
+content_types_provided(Req, State) ->
+    {[
+        {{<<"application">>, <<"json">>, [{<<"charset">>, <<"utf-8">>}]}, undefined}
+    ], Req, State}.
+
+handle_create_board(Req0, State) ->
+    {ok, BoardId} = boards_lookup_service:create_board(),
+    Body = jsone:encode([{<<"boardId">>, BoardId}]),
+    Req1 = cowboy_req:set_resp_body(Body, Req0),
+    {{created, BoardId}, Req1, State}.

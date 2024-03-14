@@ -11,6 +11,7 @@
 
 init(Req, State) ->
     NewState = create_new_state_with_previous_session_token_if_provided(Req, State),
+    %lager:info(io_lib:format("Websocket requested ~p~n", [Req])),
     {cowboy_websocket, Req, NewState}.
 
 websocket_init(State) ->

@@ -13,7 +13,7 @@ start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/api", backend_handler, []},
-            {"/api/rest/boards", create_board_handler, []},
+            {"/api/rest/boards", create_board_handler, #{}},
             {"/api/rest/boards/:boardId", get_board_handler, []},
             {"/api/rest/blobs", create_blob_handler, []},
             {"/api/rest/blobs/:blobId", get_blob_handler, []},
