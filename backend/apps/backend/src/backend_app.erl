@@ -9,15 +9,17 @@
 
 -export([start/2, stop/1]).
 
+-include("records.hrl").
+
 start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/api", backend_handler, []},
-            {"/api/rest/boards", create_board_handler, #{}},
-            {"/api/rest/boards/:boardId", get_board_handler, []},
-            {"/api/rest/blobs", create_blob_handler, []},
-            {"/api/rest/blobs/:blobId", get_blob_handler, []},
-            {"/api/ws", websocket_handler, []}
+            {"/api", backend_handler, undefined},
+            {"/api/rest/boards", create_board_handler, undefined},
+            {"/api/rest/boards/:boardId", get_board_handler, #get_board_handler_state{}},
+            {"/api/rest/blobs", create_blob_handler, #blob_handler_state{}},
+            {"/api/rest/blobs/:blobId", get_blob_handler, undefined},
+            {"/api/ws", websocket_handler, #websocket_handler_state{}}
         ]}
     ]),
     {ok, _} = cowboy:start_clear(my_http_listener,
@@ -27,6 +29,6 @@ start(_StartType, _StartArgs) ->
     backend_sup:start_link().
 
 stop(_State) ->
-    ok.
+    cowboy:stop_listener(my_http_listener).
 
 %% internal functions

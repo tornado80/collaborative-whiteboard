@@ -30,12 +30,12 @@ init([]) ->
                  intensity => 10,
                  period => 1},
     ChildSpecs = [#{
-                     id => boards_lookup_service,
-                     start => {boards_lookup_service, start_link, []},
+                     id => boards_manager_service,
+                     start => {boards_manager_service, start_link, []},
                      restart => permanent,
                      shutdown => 5000,
                      type => worker,
-                     modules => [boards_lookup_service]
+                     modules => [boards_manager_service]
                  }],
     {ok, {SupFlags, ChildSpecs}}.
 

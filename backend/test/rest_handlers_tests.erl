@@ -1,4 +1,4 @@
--module(create_board_handler_tests).
+-module(rest_handlers_tests).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -31,4 +31,9 @@ create_board_handler_test() ->
     % Assert
     ?assertMatch({ok, _Body}, ResponseBody),
     {ok, Body} = ResponseBody,
-    ?assertEqual([{<<"boardId">>, BoardId}], jsone:decode(Body, [{object_format, proplist}])).
+    ?assertEqual([{<<"boardId">>, BoardId}], jsone:decode(Body, [{object_format, proplist}])),
+
+    % Cleanup
+    gun:close(Pid),
+    application:stop(backend),
+    application:stop(gun).

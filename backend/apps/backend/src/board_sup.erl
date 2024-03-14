@@ -1,8 +1,3 @@
-%%%-------------------------------------------------------------------
-%% @doc backend top level supervisor.
-%% @end
-%%%-------------------------------------------------------------------
-
 -module(board_sup).
 
 -behaviour(supervisor).
@@ -26,7 +21,7 @@ start_link() ->
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
 init([]) ->
-    SupFlags = #{strategy => one_for_all,
+    SupFlags = #{strategy => one_for_one,
                  intensity => 10,
                  period => 1},
     ChildSpecs = [#{
@@ -46,12 +41,12 @@ init([]) ->
                      modules => [board_cache_service]
                  },
                  #{
-                     id => board_manager_service,
-                     start => {board_manager_service, start_link, []},
+                     id => board_controller_service,
+                     start => {board_controller_service, start_link, []},
                      restart => permanent,
                      shutdown => 5000,
                      type => worker,
-                     modules => [board_manager_service]
+                     modules => [board_controller_service]
                  }],
     {ok, {SupFlags, ChildSpecs}}.
 

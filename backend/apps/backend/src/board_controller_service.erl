@@ -1,15 +1,24 @@
--module(board_manager_service).
+-module(board_controller_service).
 -behaviour(gen_server).
 
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
--export([]).
+-export([get_board_state/1]).
 
 %% State record
 -record(state, {}).
 
 %% API functions
+get_board_state(Pid) ->
+    gen_server:call(Pid, get_board_state).
+
+create_session_token(Pid) ->
+    gen_server:call(Pid, create_session_token).
+
+subscribe_to_board(Pid, SessionToken, SubscriberPid) ->
+    gen_server:call(Pid, {subscribe_to_board, SessionToken, SubscriberPid}).
+
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
