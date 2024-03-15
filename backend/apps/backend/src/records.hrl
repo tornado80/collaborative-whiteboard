@@ -12,7 +12,7 @@
 }).
 
 -record(websocket_handler_state, {
-    sessionToken = binary(),
+    sessionToken :: binary(),
     boardId :: binary(),
     boardManagerPid :: pid()
 }).

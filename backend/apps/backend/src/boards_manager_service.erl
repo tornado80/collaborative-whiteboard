@@ -8,7 +8,7 @@
     create_board/0, 
     try_get_board_controller_service/1,
     try_get_board_cache_service/1, 
-    is_session_token_valid/1
+    is_session_token_valid/2
 ]).
 
 %% State record
@@ -26,18 +26,22 @@ create_board() ->
     {ok, utility:new_uuid()}.
 
 -spec try_get_board_controller_service(binary()) -> {ok, pid()} | notfound.
-try_get_board_controller_service(BoardId) ->
-    % TODO: if board id exists in the database but there is no controller service, spawn one
+try_get_board_controller_service(_BoardId) ->
+    % TODO: if board id exists in the database but there is no controller service, spawn board_sup
     % otherwise, if board id exists in the database and there is a controller service, return it
     % otherwise, return notfound
     notfound.
 
 -spec try_get_board_cache_service(binary()) -> {ok, pid()} | notfound.
-try_get_board_cache_service(SessionToken) -> 
+try_get_board_cache_service(_BoardId) -> 
+    % TODO: if board id exists in the database but there is no cache service, spawn board_sup
+    % otherwise, if board id exists in the database and there is a cache service, return it
+    % otherwise, return notfound
     notfound.
 
--spec is_session_token_valid(binary()) -> boolean().
-is_session_token_valid(SessionToken) ->
+-spec is_session_token_valid(binary(), binary()) -> boolean().
+is_session_token_valid(_BoardId, _SessionToken) ->
+    % TODO: 
     false.
 
 %% Callback functions

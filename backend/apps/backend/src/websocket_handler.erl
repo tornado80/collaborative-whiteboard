@@ -6,13 +6,14 @@
     init/2, 
     websocket_init/1, 
     websocket_handle/2, 
-    websocket_info/2
+    websocket_info/2,
+    terminate/3
 ]).
 
 % Callbacks
 
 init(Req, State) ->
-    case cowboy_req:header(<<"board-id">>, Req) of
+    case cowboy_req:binding(<<"board-id">>, Req) of
         undefined -> 
             cowboy_req:reply(400, Req),
             {ok, Req, State};
@@ -26,7 +27,7 @@ find_board_controller_service(Req, State) ->
             cowboy_req:reply(404, Req),
             {ok, Req, State};
         {ok, BoardManagerPid} -> 
-            is_session_token_provided(Req, State#websocket_handler_state{boardManagerPid = BoardManagerPid})
+            {cowboy_websocket, Req, State#websocket_handler_state{boardManagerPid = BoardManagerPid}}
     end.
 
 is_session_token_provided(Req, State) ->
@@ -47,8 +48,8 @@ is_session_token_valid(Req, State) ->
             {cowboy_websocket, Req, State}
     end.
 
-websocket_init(State) ->
-    board_controller_service:subscribe_to_board(State#websocket_handler_state.boardManagerPid, SessionToken, self()),
+websocket_init(State = #websocket_handler_state{boardManagerPid = BoardManagerPid, sessionToken = SessionToken}) ->
+    board_controller_service:subscribe_to_board(BoardManagerPid, SessionToken, self()),
     {ok, State}.
 
 websocket_handle(Frame = {text, _}, State) ->
@@ -65,7 +66,7 @@ terminate({remote, _, _}, PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftPermanently);
 terminate(stop, PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftPermanently);
-termiante(timeout, PartialReq, State) ->
+terminate(timeout, PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftTemporarily);
 terminate({error, _}, PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftTemporarily);

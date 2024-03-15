@@ -45,13 +45,13 @@ is_request_malformed('is session token provided?', Req, State) ->
     end.
 
 resource_exists(Req, State = #get_board_handler_state{boardId = BoardId}) ->
-    case boards_manager_service:try_get_board_manager_service(BoardId) of
+    case boards_manager_service:try_get_board_controller_service(BoardId) of
         notfound -> {false, Req, State};
         {ok, Pid} -> {true, Req, State#get_board_handler_state{boardManagerPid = Pid}}
     end.
 
-is_authorized(Req, State = #get_board_handler_state{sessionToken = SessionToken}) ->
-    {boards_manager_service:is_session_token_valid(SessionToken), Req, State}.
+is_authorized(Req, State = #get_board_handler_state{boardId = BoardId, sessionToken = SessionToken}) ->
+    {boards_manager_service:is_session_token_valid(BoardId, SessionToken), Req, State}.
 
 handle_get_board(Req, State) ->
     BoardState = board_controller_service:get_board_state(State#get_board_handler_state.boardManagerPid),
