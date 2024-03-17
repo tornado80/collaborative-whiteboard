@@ -13,7 +13,7 @@
 % Callbacks
 
 init(Req, State) ->
-    case cowboy_req:binding(<<"board-id">>, Req) of
+    case cowboy_req:binding(boardId, Req) of
         undefined -> 
             cowboy_req:reply(400, Req),
             {ok, Req, State};
