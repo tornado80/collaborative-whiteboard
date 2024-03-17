@@ -1,21 +1,13 @@
-.App {
-  text-align: center;
-}
-
 .App-logo {
   height: 40vmin;
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
+.app {
+  text-align: center;
   background-color: #282c34;
   min-height: 100vh;
+  max-height: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -24,15 +16,78 @@
   color: white;
 }
 
+.toolbar {
+  width: 100%;
+  background-color: #46494e;
+}
+
+.toolbar > * {
+  margin: 0.25rem;
+}
+
+.canvas {
+  width: 100%;
+  flex-grow: 1;
+  overflow: scroll;
+}
+
+.canvas.tool-default {
+  cursor: default;
+}
+
+.canvas.tool-move {
+  cursor: grab;
+}
+
+.canvas.tool-draw {
+  cursor: default;
+}
+
+.canvas.tool-erase {
+  cursor: default;
+}
+
+.canvas.tool-note {
+  cursor: default;
+}
+
+.canvas.tool-image {
+  cursor: default;
+}
+
+.canvas.tool-comment {
+  cursor: default;
+}
+
+.canvas-frame {
+  background-color: white;
+  margin: 8px; /* Do NOT change this (or change the BOARD_MARGIN in App.js as well) */
+}
+
 .App-link {
   color: #61dafb;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.modalbox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalbuttons > * {
+  margin: 0.25rem;
+}
+
+
+/* Objects */
+
+.board-obj {
+  user-select: default;
+}
+
+.sticky-note {
+  background-color: rgb(255, 232, 23);
+  color: black;
+  padding: 4px;
 }

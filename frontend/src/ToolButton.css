@@ -1,0 +1,8 @@
+
+.tool-button.selected {
+    background-color: #818181;
+}
+
+.tool-button:not(.selected) {
+    background-color: #c5c5c5;
+}
