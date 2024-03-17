@@ -28,12 +28,6 @@ paths:
         schema:
           type: string
           format: uuid
-      - name: Session-Token
-        in: header
-        required: true
-        schema:
-          type: string
-          format: uuid
     get:
       responses:
         '200':
@@ -42,11 +36,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Board'
-  /api/rest/blobs:
+  /api/rest/boards/{boardId}/blobs:
     post:
       parameters:
-        - name: Session-Token
-          in: header
+        - name: boardId
+          in: path
           required: true
           schema:
             type: string
@@ -70,17 +64,17 @@ paths:
                     type: string
                     format: uuid
                     example: 123e4567-e89b-12d3-a456-426614174000
-  /api/rest/blobs/{blobId}:
+  /api/rest/boards/{boardId}/blobs/{blobId}:
     get:
       parameters:
-        - name: blobId
+        - name: boardId
           in: path
           required: true
           schema:
             type: string
             format: uuid
-        - name: Session-Token
-          in: header
+        - name: blobId
+          in: path
           required: true
           schema:
             type: string
