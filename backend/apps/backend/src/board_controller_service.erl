@@ -4,7 +4,12 @@
 -export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
--export([get_board_state/1]).
+-export([
+    get_board_state/1,
+    new_session/1,
+    continue_session/3,
+    send_event/3
+]).
 
 %% State record
 -record(state, {}).
@@ -13,11 +18,14 @@
 get_board_state(Pid) ->
     gen_server:call(Pid, get_board_state).
 
-create_session_token(Pid) ->
-    gen_server:call(Pid, create_session_token).
+new_session(Pid) ->
+    gen_server:call(Pid, {new_session, self()}).
 
-subscribe_to_board(Pid, SessionToken, SubscriberPid) ->
-    gen_server:call(Pid, {subscribe_to_board, SessionToken, SubscriberPid}).
+continue_session(Pid, SessionToken, LastEventId) ->
+    gen_server:call(Pid, {continue_session, self(), SessionToken, LastEventId}).
+
+send_event(Pid, SessionToken, Event) ->
+    gen_server:call(Pid, {send_event, SessionToken, Event}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).

@@ -1,3 +1,15 @@
+-record(event, {
+    eventType :: atom(),
+    eventId :: integer(),
+    eventContent
+}).
+
+-record(begin_event, {
+    sessionType :: atom(),
+    sessionToken :: binary(),
+    lastEventId :: integer()
+}).
+
 -record(get_board_handler_state, {
     boardId :: binary(),
     sessionToken :: binary(),

@@ -7,8 +7,7 @@
 -export([
     create_board/0, 
     try_get_board_controller_service/1,
-    try_get_board_cache_service/1, 
-    is_session_token_valid/2
+    try_get_board_cache_service/1
 ]).
 
 %% State record
@@ -38,11 +37,6 @@ try_get_board_cache_service(_BoardId) ->
     % otherwise, if board id exists in the database and there is a cache service, return it
     % otherwise, return notfound
     notfound.
-
--spec is_session_token_valid(binary(), binary()) -> boolean().
-is_session_token_valid(_BoardId, _SessionToken) ->
-    % TODO: 
-    false.
 
 %% Callback functions
 init([]) ->

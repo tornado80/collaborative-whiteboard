@@ -30,47 +30,38 @@ find_board_controller_service(Req, State) ->
             {cowboy_websocket, Req, State#websocket_handler_state{boardManagerPid = BoardManagerPid}}
     end.
 
-is_session_token_provided(Req, State) ->
-    case cowboy_req:header(<<"session-token">>, Req) of
-        undefined -> 
-            {ok, SessionToken} = board_controller_service:create_session_token(State#websocket_handler_state.boardManagerPid),
-            {cowboy_websocket, Req, State#websocket_handler_state{sessionToken = SessionToken}};
-        SessionToken -> 
-            is_session_token_valid(Req, State#websocket_handler_state{sessionToken = SessionToken})
-    end.
-
-is_session_token_valid(Req, State) ->
-    case board_controller_service:is_session_token_valid(State#websocket_handler_state.sessionToken) of
-        false -> 
-            cowboy_req:reply(401, Req),
-            {ok, Req, State};
-        true -> 
-            {cowboy_websocket, Req, State}
-    end.
-
-websocket_init(State = #websocket_handler_state{boardManagerPid = BoardManagerPid, sessionToken = SessionToken}) ->
-    board_controller_service:subscribe_to_board(BoardManagerPid, SessionToken, self()),
+websocket_init(State) ->
     {ok, State}.
 
-websocket_handle(Frame = {text, _}, State) ->
-    {[Frame], State};
+websocket_handle(_Frame = {text, Data}, State) ->
+    case websocket_event_parser:parse(Data) of
+        {ok, Event} -> 
+            websocket_event_handlers:handle_event(Event, State);
+        {error, Reason} -> 
+            lager:error(Reason),
+            {[{close, Reason}], State}
+    end;
+websocket_handle(_Frame = {binary, _Data}, State) ->
+    Reason = <<"this endpoint does not accept binary stream">>,
+    lager:error(Reason),
+    {[{close, Reason}], State};
 websocket_handle(_Frame, State) ->
-    {ok, State}.
+    {[{active, true}], State}.
 
 websocket_info(_ErlangMsg, State) ->
-    {ok, State}.
+    {[{active, true}], State}.
 
-terminate(remote, PartialReq, State) ->
+terminate(remote, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate({remote, _, _}, PartialReq, State) ->
+terminate({remote, _, _}, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate(stop, PartialReq, State) ->
+terminate(stop, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate(timeout, PartialReq, State) ->
+terminate(timeout, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftTemporarily);
-terminate({error, _}, PartialReq, State) ->
+terminate({error, _}, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftTemporarily);
-terminate(normal, PartialReq, State) ->
+terminate(normal, _PartialReq, State) ->
     inform_board_controller_service_of_termination(State, userLeftTemporarily).
 
 % Internals
