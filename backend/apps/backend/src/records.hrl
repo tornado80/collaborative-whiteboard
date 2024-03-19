@@ -10,15 +10,23 @@
     lastEventId :: integer()
 }).
 
+-record(reservation_propose_event, {
+    canvasObjectId :: binary(),
+    proposalId :: binary(),
+}).
+
+-record(reservation_cancel_event, {
+    reservationId :: binary(),
+}).
+
 -record(get_board_handler_state, {
     boardId :: binary(),
     sessionToken :: binary(),
-    boardManagerPid :: pid()
+    boardControllerPid :: pid()
 }).
 
 -record(blob_handler_state, {
-    sessionToken :: binary(),
-    boardCacheServicePid :: pid(),
+    boardId :: binary(),
     blobId :: binary(),
     blob :: binary()
 }).
@@ -26,7 +34,7 @@
 -record(websocket_handler_state, {
     sessionToken :: binary(),
     boardId :: binary(),
-    boardManagerPid :: pid()
+    boardControllerPid :: pid()
 }).
 
 -record(user, {
@@ -79,4 +87,11 @@
     lastChangeId :: integer(),
     activeUsers :: [#user{}],
     canvasObjects :: [#stickyNote{} | #curve{} | #image{}]
+}).
+
+-record(board_update, {
+    proposalId :: binary(),
+    update :: binary(),
+    intermediate :: atom(),
+    canvasObjectId :: binary()
 }).

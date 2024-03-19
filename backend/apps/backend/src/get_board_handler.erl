@@ -40,9 +40,9 @@ is_request_malformed('is board id valid uuid?', Req, State = #get_board_handler_
 resource_exists(Req, State = #get_board_handler_state{boardId = BoardId}) ->
     case boards_manager_service:try_get_board_controller_service(BoardId) of
         notfound -> {false, Req, State};
-        {ok, Pid} -> {true, Req, State#get_board_handler_state{boardManagerPid = Pid}}
+        {ok, Pid} -> {true, Req, State#get_board_handler_state{boardControllerPid = Pid}}
     end.
 
 handle_get_board(Req, State) ->
-    BoardState = board_controller_service:get_board_state(State#get_board_handler_state.boardManagerPid),
+    BoardState = board_controller_service:get_board_state(State#get_board_handler_state.boardControllerPid),
     {jsone:encode(BoardState), Req, State}.

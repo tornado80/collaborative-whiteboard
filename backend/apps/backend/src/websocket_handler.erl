@@ -26,8 +26,8 @@ find_board_controller_service(Req, State) ->
         notfound -> 
             cowboy_req:reply(404, Req),
             {ok, Req, State};
-        {ok, BoardManagerPid} -> 
-            {cowboy_websocket, Req, State#websocket_handler_state{boardManagerPid = BoardManagerPid}}
+        {ok, BoardControllerPid} -> 
+            {cowboy_websocket, Req, State#websocket_handler_state{boardControllerPid = BoardControllerPid}}
     end.
 
 websocket_init(State) ->
@@ -68,7 +68,7 @@ terminate(normal, _PartialReq, State) ->
 
 inform_board_controller_service_of_termination(State, Status) ->
     board_controller_service:unsubscribe_from_board(
-        State#websocket_handler_state.boardManagerPid, 
+        State#websocket_handler_state.boardControllerPid, 
         State#websocket_handler_state.sessionToken, 
         self(), 
         Status),
