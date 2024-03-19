@@ -46,6 +46,10 @@ channels:
         $ref: '#/components/messages/boardUpdateFailed'
       boardUpdateSucceeded:
         $ref: '#/components/messages/boardUpdateSucceeded'
+      undoRequested:
+        $ref: '#/components/messages/undoRequested'
+      redoRequested:
+        $ref: '#/components/messages/redoRequested'
 operations:
   begin:
     action: send
