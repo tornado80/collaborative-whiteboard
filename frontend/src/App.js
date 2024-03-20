@@ -3,7 +3,7 @@ import * as React from "react"
 import Modal from "react-modal"
 import ToolButton from "./ToolButton"
 import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault } from "@mdi/js"
-
+import html2canvas from 'html2canvas';
 import { Session } from './state/session';
 
 // Define constants
@@ -406,9 +406,20 @@ export default class App extends React.Component {
     }
   }
 
+  // ex
+    exportAsPNG = () => {
+      const element = document.getElementById('canvas'); 
+      html2canvas(element).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'whiteboard.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    };
+
   render() {
     return (
-      <div className="app">
+      <div className="app" id="whiteboard">
         <div className="toolbar">
           <ToolButton
             selected={this.state.selectedTool === Tool.Default}
@@ -486,7 +497,7 @@ export default class App extends React.Component {
             </div>
           </div>
         </Modal>
-        <div className="canvas" ref={this.canvasScrollRef} style={{position: 'relative'}}
+        <div className="canvas" id="canvas" ref={this.canvasScrollRef} style={{position: 'relative'}}
           onMouseMove={this.onMouseMoveOnCanvas.bind(this)}
           onMouseDown={this.onMouseDownOnCanvas.bind(this)}
           onMouseUp={this.onMouseUpOnCanvas.bind(this)}
@@ -503,6 +514,20 @@ export default class App extends React.Component {
             height={BOARD_HEIGHT}
           />
         </div>
+        <div>
+          <button style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            zIndex: '999',
+            padding: '8px 16px',
+            backgroundColor: '#f0f0f0',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }} 
+          onClick={this.exportAsPNG}>Export Board as PNG</button>
+      </div>
       </div>
     );
   }
