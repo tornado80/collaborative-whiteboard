@@ -1,6 +1,6 @@
 -module(create_blob_handler).
 
--include("records.hrl").
+-include("handlers_state_records.hrl").
 
 -export([init/2, allowed_methods/2, content_types_accepted/2, handle_create_blob/2, content_types_provided/2, malformed_request/2, resource_exists/2]).
 

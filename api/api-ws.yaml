@@ -12,9 +12,6 @@ channels:
     parameters:
       boardId:
         description: Unique identifier of the board
-        schema:
-          type: string
-          format: uuid
     messages:
       begin:
         $ref: '#/components/messages/begin'
@@ -201,7 +198,7 @@ components:
         eventId:
           type: integer
           format: int64
-          description: Unique identifier of the event
+          description: Unique identifier of server sent events (not included in client sent events)
         eventTimestamp:
           type: integer
           format: int64
@@ -254,10 +251,6 @@ components:
           properties:
             eventType:
               const: undoRequested
-            userId:
-              type: string
-              format: uuid
-              description: Unique identifier of the user who requested the undo
     redoRequestPayload:
       allOf:
         - $ref: '#/components/schemas/event'
@@ -265,10 +258,6 @@ components:
           properties:
             eventType:
               const: redoRequested
-            userId:
-              type: string
-              format: uuid
-              description: Unique identifier of the user who requested the redo
     erasePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
@@ -351,10 +340,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: updateStickyNote
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
             position:
               $ref: '#/components/schemas/vec2'
             text:
@@ -369,10 +354,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: updateComment
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
             text:
               type: string
               description: Comment text
@@ -388,10 +369,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: updateImage
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
             position:
               $ref: '#/components/schemas/vec2'
             width:
@@ -404,10 +381,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: deleteStickyNote
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
     deleteImagePayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
@@ -415,10 +388,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: deleteImage
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
     deleteCommentPayload:
       allOf:
         - $ref: '#/components/schemas/canvasObjectOperation'
@@ -426,10 +395,6 @@ components:
           properties:
             canvasObjectOperationType:
               const: deleteComment
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
     vec2:
       type: object
       properties:
@@ -466,10 +431,11 @@ components:
         - canvasObjectOperationType
     updatePayload:
       type: object
-      required:
-        - canvasObjectId
-        - operation
       properties:
+        canvasObjectId:
+          type: string
+          format: uuid
+          description: Unique identifier of the canvas object
         canvasObjectType:
           enum:
             - stickyNote
@@ -524,10 +490,6 @@ components:
               type: string
               format: uuid
               description: Unique identifier of the update proposal
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
     boardUpdatedPayload:
       allOf:
         - $ref: '#/components/schemas/event'
@@ -536,10 +498,10 @@ components:
           properties:
             eventType:
               const: boardUpdated
-            changeId:
+            updateId:
               type: integer
               format: int64
-              description: Unique monotonically increasing identifier of the change
+              description: Unique monotonically increasing identifier of the update
             userId:
               type: string
               format: uuid
@@ -547,10 +509,6 @@ components:
             intermediate:
               type: boolean
               description: Indicates if the update is intermediate
-            canvasObjectId:
-              type: string
-              format: uuid
-              description: Unique identifier of the canvas object
     boardUpdateFailedPayload:
       allOf:
         - $ref: '#/components/schemas/event'

@@ -1,6 +1,6 @@
 -module(get_board_handler).
 
--include("records.hrl").
+-include("handlers_state_records.hrl").
 
 -export([
     init/2, 
@@ -44,5 +44,5 @@ resource_exists(Req, State = #get_board_handler_state{boardId = BoardId}) ->
     end.
 
 handle_get_board(Req, State) ->
-    BoardState = board_controller_service:get_board_state(State#get_board_handler_state.boardControllerPid),
-    {jsone:encode(BoardState), Req, State}.
+    BoardStateJson = board_controller_service:get_board_state(State#get_board_handler_state.boardControllerPid),
+    {BoardStateJson, Req, State}.

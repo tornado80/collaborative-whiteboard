@@ -9,11 +9,12 @@
 
 -export([start/2, stop/1]).
 
--include("records.hrl").
+-include("handlers_state_records.hrl").
 
 start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
+            {"/", frontend_new_board_redirector, undefined},
             {"/api", backend_handler, undefined},
             {"/api/rest/boards", create_board_handler, undefined},
             {"/api/rest/boards/:boardId", get_board_handler, #get_board_handler_state{}},

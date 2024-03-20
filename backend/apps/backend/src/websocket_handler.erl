@@ -1,6 +1,6 @@
 -module(websocket_handler).
 
--include("records.hrl").
+-include("handlers_state_records.hrl").
 
 -export([
     init/2, 
@@ -18,7 +18,10 @@ init(Req, State) ->
             cowboy_req:reply(400, Req),
             {ok, Req, State};
         BoardId -> 
-            find_board_controller_service(Req, State#websocket_handler_state{boardId = BoardId})
+            find_board_controller_service(Req, State#websocket_handler_state{
+                boardId = BoardId,
+                nextEventId = 1
+            })
     end.
 
 find_board_controller_service(Req, State) ->

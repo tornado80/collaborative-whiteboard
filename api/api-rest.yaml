@@ -200,7 +200,7 @@ components:
               propertyName: canvasObjectType
         name:
           type: string
-        lastChangeId:
+        lastUpdateId:
           type: integer
           format: int64
         activeUsers:
