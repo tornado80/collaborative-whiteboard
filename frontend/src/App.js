@@ -55,8 +55,8 @@ export default class App extends React.Component {
     this.canvasRef = React.createRef(null)
     this.canvasScrollRef = React.createRef(null)
     
-    //[this.objectsState, this.objectsUpdate] = React.useState([])
-    //this.session = new Session(objectsState, objectsUpdate)
+    [this.objectsState, this.objectsUpdate] = React.useState([])
+    this.session = new Session(objectsState, objectsUpdate)
   }
 
   // Set current tool to another
@@ -300,11 +300,16 @@ export default class App extends React.Component {
     //this.state.actionPos.y
     //this.state.stickyNoteText
 
+    
+    this.resetActionState();
+
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    alert("Feture not implemented (yet)")
+    // alert("Feture not implemented (yet)")
 
-    this.resetActionState()
+    // this.resetActionState()
+
+
   }
 
   // Called when modal "form" is submitted and changes the board state.

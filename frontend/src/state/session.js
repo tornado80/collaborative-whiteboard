@@ -11,32 +11,53 @@ export class Session {
         this._state = state
         this._updateState = update
         this._boardId = boardId
-
+        this._eventId = 1
         this._ready = false
         this._mutationEventBuf = []
 
-        // Open WebSocket Session
+        // Open WebSocket Session, receive should handle here
         this._ws = new WebSocket(wsPathOnsameHost(`/api/ws/boards/${boardId}`))
 
         this._ws.onmessage = event => {
             const eventData = JSON.parse(event.data)
 
-            switch(eventData.type) {
+            switch(eventData.eventType) {
                 // TODO: Process events based on event type discriminator field
-                case "update":
-                    if (this._ready) {
-                        this._processStateMutationEvent(eventData)
-                    } else {
-                        this._mutationEventBuf.push(eventData)
-                    }
-                
-                case "welcome":
+                case "welcomeUser":
                     // TODO: Save session information (e.g. ID & token)
                     this._fetchInitialState()
-                case "close":
-                    // TODO: Handle close
+
+                case "reservationCancelled":
+
+                case "reservationExpired":
+                
+                case "canvasObjectReserved":
+
+                case "userJoined":
+
+                case "userLeft":
+
+                case "boardUpdated":
+
+
+                case "reservationProposalSucceeded":
+
+                case "reservationProposalFailed":
+
+                case "boardUpdateSucceeded":
+
+                case "boardUpdateFailed":
+
+                    
             }
         }
+
+        this._ws.onopen = () => {
+            switch(eventData.eventType) {
+                case "begin":
+                    // TODO: Save session information (e.g. ID & token)
+                    this._fetchInitialState()
+          };
 
         this._sessionId = 123
         this._sessionToken = "asddfqwerty123"
