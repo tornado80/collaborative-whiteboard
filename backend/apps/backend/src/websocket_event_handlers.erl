@@ -7,7 +7,7 @@
 ]).
 
 handle_event(
-        #event{eventType = 'begin', eventId = EventId,  #begin_event{
+        #event{eventType = 'begin', eventId = EventId, eventContent = #begin_event{
             lastEventId=LastEventId, 
             sessionToken = SessionToken, 
             sessionType = SessionType
@@ -37,7 +37,7 @@ handle_event(
     end;
 
 handle_event(
-        #event{eventType = 'reservationProposed', eventId = EventId, #reservation_propose_event{
+        #event{eventType = 'reservationProposed', eventId = EventId, eventContent = #reservation_propose_event{
            canvasObjectId = CanvasObjectId,
            proposalId = ProposalId
         }}, 
@@ -51,159 +51,156 @@ handle_event(
         already_reserved ->
             % already reserved
             UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationProposalFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This object is already reserved.">> }] ),
-            {[{text, UnsuccessData}], State}
+            {[{text, UnsuccessData}], State};
         object_not_found ->
             UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationProposalFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This object is not found.">> }] ),
-            {[{text, UnsuccessData}], State}
+            {[{text, UnsuccessData}], State};
 
         session_not_found ->
             UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationProposalFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This session does not exist.">> }] ),
-            {[{text, UnsuccessData}], State}
+            {[{text, UnsuccessData}], State};
 
         board_not_found ->
             UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationProposalFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"The board does not exist.">> }] ),
-            {[{text, UnsuccessData}], State}
+            {[{text, UnsuccessData}], State};
 
         _ -> 
             UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationProposalFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"Unexpected behaviour.">> }] ),
             {[{text, UnsuccessData}], State}
-        
+        end;
 
 handle_event(
-        #event{eventType = 'reservationCancellationRequested', eventId = EventId, #reservation_cancel_event{
+        #event{eventType = 'reservationCancellationRequested', eventId = EventId, eventContent = #reservation_cancel_event{
            reservationId = ReservationId
         }}, 
         #websocket_handler_state{boardControllerPid = Pid, sessionToken = SessionToken, boardId = BoardId} = State) ->
         
         case board_controller_service:reserve_cancel(Pid, ReservationId, SessionToken, BoardId ) of
             {ok, ReservationId} ->
-                SuccessData = append_event_to_response_body(EventId+1, <<"reservationCancelled">>, [{<<"reservationId">>, ReservationId }])
+                SuccessData = append_event_to_response_body(EventId+1, <<"reservationCancelled">>, [{<<"reservationId">>, ReservationId }]),
                 {[{text, SuccessData}], State};
 
             reservation_expired ->
             % reservation expired
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationExpired">>, [{<<"reservationId">>, ReservationId }, {<<"errorMessage">>, <<"This object reservation is expired. Hence, it is illegal action.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
             object_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationExpired">>, [{<<"reservationId">>, ReservationId }, {<<"errorMessage">>, <<"This object is not found.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             session_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationExpired">>, [{<<"reservationId">>, ReservationId }, {<<"errorMessage">>, <<"This session does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             board_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationExpired">>, [{<<"reservationId">>, ReservationId }, {<<"errorMessage">>, <<"The board does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             _ -> 
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"reservationExpired">>, [{<<"reservationId">>, ReservationId }, {<<"errorMessage">>, <<"Unexpected behaviour.">> }] ),
                 {[{text, UnsuccessData}], State}
 
-
+                end;
 
 handle_event(
-        #event{eventType = 'boardUpdateProposed', eventId = EventId, #board{
-           lastChangeId = LastChangeId,
-        },
-        #board_update{
+        #event{eventType = 'boardUpdateProposed', eventId = EventId, eventContent = #board_update{
             proposalId = ProposalId,
             update = Update,
             canvasObjectId = CanvasObjectId
-        }, 
+        }}, 
         #websocket_handler_state{boardControllerPid = Pid, sessionToken = SessionToken, boardId = BoardId} = State) ->
         
-        case board_controller_service:board_update(Pid, SessionToken, BoardId, LastChangeId, ProposalId, Update, Intermediate) of
+        case board_controller_service:board_update(Pid, SessionToken, BoardId, ProposalId, Update) of
             {ok, ProposalId,CanvasObjectId} ->
-                SuccessData = append_event_to_response_body(EventId+1, <<"boardUpdateSucceeded">>, [{<<"proposalId">>, ProposalId }, {<<"canvasObjectId">>, CanvasObjectId }])
+                SuccessData = append_event_to_response_body(EventId+1, <<"boardUpdateSucceeded">>, [{<<"proposalId">>, ProposalId }, {<<"canvasObjectId">>, CanvasObjectId }]),
                 {[{text, SuccessData}], State};
 
             reservation_expired ->
             % reservation expired
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"boardUpdateFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This object reservation is expired. Hence, it is illegal action.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
             object_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"boardUpdateFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This object is not found.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             session_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"boardUpdateFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"This session does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             board_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"boardUpdateFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"The board does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             _ -> 
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"boardUpdateFailed">>, [{<<"proposalId">>, ProposalId }, {<<"errorMessage">>, <<"Unexpected behaviour.">> }] ),
                 {[{text, UnsuccessData}], State}
-
+        end;
 handle_event(
         #event{eventType = 'undoRequested', eventId = EventId,
-        #user{
-            id = UserId,
-        }, 
+        eventContent = #user{
+            id = UserId
+        }}, 
         #websocket_handler_state{boardControllerPid = Pid, sessionToken = SessionToken, boardId = BoardId} = State) ->
         
         case board_controller_service:undo_action(Pid, SessionToken, BoardId, UserId) of
             {ok, UserId} ->
-                SuccessData = append_event_to_response_body(EventId+1, <<"undoSucceeded">>, [{<<"userId">>, UserId }])
+                SuccessData = append_event_to_response_body(EventId+1, <<"undoSucceeded">>, [{<<"userId">>, UserId }]),
                 {[{text, SuccessData}], State};
 
             reservation_expired ->
             % reservation expired
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"undoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This object reservation is expired. Hence, it is illegal action.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
             object_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"undoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This object is not found.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             session_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"undoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This session does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             board_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"undoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"The board does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             _ -> 
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"undoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"Unexpected behaviour.">> }] ),
                 {[{text, UnsuccessData}], State}
-
+        end;
 handle_event(
         #event{eventType = 'redoRequested', eventId = EventId,
-        #user{
-            id = UserId,
-        }, 
+        eventContent = #user{
+            id = UserId
+        }}, 
         #websocket_handler_state{boardControllerPid = Pid, sessionToken = SessionToken, boardId = BoardId} = State) ->
         
         case board_controller_service:redo_action(Pid, SessionToken, BoardId, UserId) of
             {ok, UserId} ->
-                SuccessData = append_event_to_response_body(EventId+1, <<"redoSucceeded">>, [{<<"userId">>, UserId }])
+                SuccessData = append_event_to_response_body(EventId+1, <<"redoSucceeded">>, [{<<"userId">>, UserId }]),
                 {[{text, SuccessData}], State};
 
             reservation_expired ->
             % reservation expired
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"redoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This object reservation is expired. Hence, it is illegal action.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
             object_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"redoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This object is not found.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             session_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"redoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"This session does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             board_not_found ->
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"redoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"The board does not exist.">> }] ),
-                {[{text, UnsuccessData}], State}
+                {[{text, UnsuccessData}], State};
 
             _ -> 
                 UnsuccessData = append_event_to_response_body(EventId+1,<<"redoFailed">>, [{<<"userId">>, UserId }, {<<"errorMessage">>, <<"Unexpected behaviour.">> }] ),
                 {[{text, UnsuccessData}], State}
 
+        end.
 
-
-append_event_to_response_body(EventId, EventType, Other)
-    jsone:encode([{<<"eventId">>, EventId }, {<<"eventType">>, EventType } | Other]),
+append_event_to_response_body(EventId, EventType, Other) ->
+    jsone:encode([{<<"eventId">>, EventId }, {<<"eventType">>, EventType } | Other]).
 

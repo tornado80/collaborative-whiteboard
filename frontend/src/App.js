@@ -456,9 +456,9 @@ export default class App extends React.Component {
             onClick={() => this.switchTool(Tool.Comment)}
             icon={mdiComment}
           />
-          x: {this.state.mouse.x},
+          {/* x: {this.state.mouse.x},
           y: {this.state.mouse.y},
-          down: {this.state.mouse.down ? "yes" : "no"}
+          down: {this.state.mouse.down ? "yes" : "no"} */}
         </div>
         <Modal
           isOpen={this.state.commentModalOpen}

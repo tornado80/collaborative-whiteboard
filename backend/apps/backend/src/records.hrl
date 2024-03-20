@@ -12,11 +12,11 @@
 
 -record(reservation_propose_event, {
     canvasObjectId :: binary(),
-    proposalId :: binary(),
+    proposalId :: binary()
 }).
 
 -record(reservation_cancel_event, {
-    reservationId :: binary(),
+    reservationId :: binary()
 }).
 
 -record(get_board_handler_state, {
@@ -28,7 +28,8 @@
 -record(blob_handler_state, {
     boardId :: binary(),
     blobId :: binary(),
-    blob :: binary()
+    blob :: binary(),
+    boardCacheServicePid :: binary()
 }).
 
 -record(websocket_handler_state, {
