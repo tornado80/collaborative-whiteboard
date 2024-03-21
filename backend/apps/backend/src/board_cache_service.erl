@@ -1,7 +1,7 @@
 -module(board_cache_service).
 -behaviour(gen_server).
 
--export([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
 -export([create_blob/2, try_get_blob/2]).
@@ -10,8 +10,8 @@
 -record(state, {}).
 
 %% API functions
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+start_link(BoardId) ->
+    gen_server:start_link(?MODULE, BoardId, []).
 
 -spec create_blob(pid(), binary()) -> {ok, binary()}.
 create_blob(Pid, Body) ->
@@ -22,7 +22,7 @@ try_get_blob(Pid, BlobId) ->
     gen_server:call(Pid, {try_get_blob, BlobId}).
 
 %% Callback functions
-init([]) ->
+init(_BoardId) ->
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

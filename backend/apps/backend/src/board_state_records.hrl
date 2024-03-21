@@ -42,7 +42,7 @@
 -record(board, {
     id :: binary(),
     name :: binary(),
-    lastChangeId :: integer(),
+    lastUpdateId :: integer(),
     activeUsers :: [#user{}],
     canvasObjects :: [#stickyNote{} | #curve{} | #image{}]
 }).

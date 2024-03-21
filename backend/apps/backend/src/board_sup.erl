@@ -2,14 +2,14 @@
 
 -behaviour(supervisor).
 
--export([start_link/0]).
+-export([start_link/1]).
 
 -export([init/1]).
 
 -define(SERVER, ?MODULE).
 
-start_link() ->
-    supervisor:start_link(?MODULE, []).
+start_link(BoardId) ->
+    supervisor:start_link(?MODULE, BoardId).
 
 %% sup_flags() = #{strategy => strategy(),         % optional
 %%                 intensity => non_neg_integer(), % optional
@@ -20,13 +20,13 @@ start_link() ->
 %%                  shutdown => shutdown(), % optional
 %%                  type => worker(),       % optional
 %%                  modules => modules()}   % optional
-init([]) ->
+init(BoardId) ->
     SupFlags = #{strategy => one_for_one,
                  intensity => 10,
                  period => 1},
     ChildSpecs = [#{
                      id => board_database_service,
-                     start => {board_database_service, start_link, []},
+                     start => {board_database_service, start_link, [BoardId]},
                      restart => permanent,
                      shutdown => 5000,
                      type => worker,
@@ -34,7 +34,7 @@ init([]) ->
                  },
                  #{
                      id => board_cache_service,
-                     start => {board_cache_service, start_link, []},
+                     start => {board_cache_service, start_link, [BoardId]},
                      restart => permanent,
                      shutdown => 5000,
                      type => worker,
@@ -42,7 +42,7 @@ init([]) ->
                  },
                  #{
                      id => board_controller_service,
-                     start => {board_controller_service, start_link, []},
+                     start => {board_controller_service, start_link, [BoardId]},
                      restart => permanent,
                      shutdown => 5000,
                      type => worker,
