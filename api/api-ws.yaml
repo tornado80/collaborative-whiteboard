@@ -441,15 +441,15 @@ components:
             - stickyNote
             - image
             - comment
-            - canvasMatrix
-        operation:
+            - canvas
+        operationType:
           enum:
             - create
             - update
             - delete
             - draw
             - erase
-        newValue:
+        operation:
           oneOf:
             - $ref: '#/components/schemas/createStickyNotePayload'
             - $ref: '#/components/schemas/createImagePayload'
@@ -481,7 +481,6 @@ components:
               description: Indicates if the update is intermediate
     boardUpdateSucceededPayload:
       allOf:
-        - $ref: '#/components/schemas/updatePayload' 
         - type: object
           properties:
             eventType:
@@ -493,7 +492,6 @@ components:
     boardUpdatedPayload:
       allOf:
         - $ref: '#/components/schemas/event'
-        - $ref: '#/components/schemas/updatePayload'
         - type: object
           properties:
             eventType:
@@ -502,6 +500,8 @@ components:
               type: integer
               format: int64
               description: Unique monotonically increasing identifier of the update
+            update:
+              $ref: '#/components/schemas/updatePayload'
             userId:
               type: string
               format: uuid

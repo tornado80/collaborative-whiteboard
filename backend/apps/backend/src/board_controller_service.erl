@@ -12,7 +12,8 @@
     cancel_reservation/3,
     update_board/3,
     undo/2,
-    redo/2
+    redo/2,
+    end_session/3
 ]).
 
 %% State record
@@ -54,10 +55,16 @@ undo(Pid, SessionToken) ->
 redo(Pid, SessionToken) ->
     gen_server:cast(Pid, {redo, SessionToken}).
 
--spec update_board(Pid :: pid(), Update :: binary(), SessionToken :: binary()) ->
-    ok | {error, binary()}.
+-spec update_board(Pid :: pid(), Update :: binary(), SessionToken :: binary()) -> ok | {error, binary()}.
 update_board(Pid, Update, SessionToken) ->
     gen_server:call(Pid, {update_board, Update, SessionToken}).
+
+-spec end_session(
+    Pid :: pid(),
+    SessionToken :: binary(),
+    Reason :: {userLeftPermanently | userLeftTemporarily, any()}) -> ok.
+end_session(Pid, SessionToken, Reason) ->
+    gen_server:call(Pid, {end_session, SessionToken, Reason}).
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).

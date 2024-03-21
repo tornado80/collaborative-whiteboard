@@ -14,7 +14,7 @@
 start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
-            {"/", frontend_new_board_redirector, undefined},
+            {"/new", redirect_handler, undefined},
             {"/api", backend_handler, undefined},
             {"/api/rest/boards", create_board_handler, undefined},
             {"/api/rest/boards/:boardId", get_board_handler, #get_board_handler_state{}},

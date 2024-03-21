@@ -1,7 +1,7 @@
 -include("common-records.hrl").
 
 -record(begin_payload, {
-    sessionType :: atom(),
+    sessionType :: new | continue,
     sessionToken :: binary(),
     lastEventId :: integer()
 }).
@@ -64,7 +64,6 @@
 }).
 
 -record(delete_sticky_note_payload, {
-    canvasObjectId :: binary()
 }).
 
 -record(create_comment_payload, {
@@ -73,24 +72,27 @@
 }).
 
 -record(update_comment_payload, {
-    canvasObjectId :: binary(),
     text :: binary(),
     timestamp :: integer()
 }).
 
 -record(delete_comment_payload, {
-    canvasObjectId :: binary()
+}).
+
+-record(create_image_payload, {
+    name :: binary(),
+    position :: #vector2{},
+    width :: integer(),
+    size :: #vector2{}
 }).
 
 -record(update_image_payload, {
-    canvasObjectId :: binary(),
     name :: binary(),
     position :: #vector2{},
     width :: integer()
 }).
 
 -record(delete_image_payload, {
-    canvasObjectId :: binary()
 }).
 
 -record(draw_payload, {
@@ -103,24 +105,38 @@
     size :: integer()
 }).
 
--record(create_image_payload, {
-    name :: binary(),
-    position :: #vector2{},
-    width :: integer(),
-    size :: #vector2{}
-}).
-
 -record(canvas_object_operation, {
-    canvasObjectOperationType :: atom(),
-    canvasObjectOperationContent ::
-        #create_sticky_note_payload{}
+    canvasObjectOperationType ::
+        createStickyNote |
+        updateStickyNote |
+        deleteStickyNote |
+        createComment |
+        updateComment |
+        deleteComment |
+        createImage |
+        updateImage |
+        deleteImage |
+        draw |
+        erase,
+    canvasObjectOperationPayload :: [{binary(), binary()}]
+        % #create_sticky_note_payload{} |
+        % #update_sticky_note_payload{} |
+        % #delete_sticky_note_payload{} |
+        % #create_comment_payload{} |
+        % #update_comment_payload{} |
+        % #delete_comment_payload{} |
+        % #update_image_payload{} |
+        % #delete_image_payload{} |
+        % #draw_payload{} |
+        % #erase_payload{} |
+        % #create_image_payload{}
 }).
 
 -record(update_payload, {
     canvasObjectId :: binary(),
-    canvasObjectType :: atom(),
-    operation :: atom(),
-    newValue :: #canvas_object_operation{}
+    canvasObjectType :: stickyNote | image | comment | canvas,
+    operationType :: create | update | delete | draw | erase,
+    operation :: #canvas_object_operation{}
 }).
 
 -record(board_update_proposed_payload, {
@@ -130,8 +146,7 @@
 }).
 
 -record(board_update_succeeded_payload, {
-    proposalId :: binary(),
-    updateContent :: #update_payload{}
+    proposalId :: binary()
 }).
 
 -record(board_update_failed_payload, {
@@ -140,28 +155,46 @@
 }).
 
 -record(board_updated_payload, {
-    changeId :: integer(),
+    updateId :: integer(),
     userId :: binary(),
     intermediate :: boolean(),
-    updateContent :: #update_payload{}
+    update :: #update_payload{}
 }).
 
 -record(event, {
-    eventType :: atom(),
+    eventType ::
+        'begin' |
+        reservation_proposed |
+        reservation_proposal_succeeded |
+        reservation_proposal_failed |
+        reservation_cancellation_requested |
+        reservation_cancelled |
+        reservation_expired |
+        canvas_object_reserved |
+        userJoined |
+        userLeft |
+        board_update_proposed |
+        board_update_succeeded |
+        board_update_failed |
+        board_updated |
+        welcome_user,
     eventId :: integer(),
-    eventContent ::
-    #begin_payload{} | % client to server
-    #reservation_proposed_payload{} | % client to server
-    #reservation_cancellation_requested_payload{} | % client to server
-    #board_update_proposed_payload{} | % client to server
-    #board_update_failed_payload{} | % server reply to client
-    #board_update_succeeded_payload{} | % server reply to client
-    #board_updated_payload{} | % server broadcast
-    #welcome_user_payload{} | % server reply to client
-    #user_payload{} | % server broadcast
-    #reservation_proposal_succeeded_payload{} | % server reply to client
-    #reservation_proposal_failed_payload{} | % server reply to client
-    #reservation_cancelled_payload{} | % server broadcast
-    #reservation_expired_payload{} | % server broadcast
-    #canvas_object_reserved_payload{} % server broadcast
+    eventPayload ::
+        % client to server
+        #begin_payload{} | % client to server
+        #reservation_proposed_payload{} | % client to server
+        #reservation_cancellation_requested_payload{} | % client to server
+        #board_update_proposed_payload{} | % client to server
+        % server (reply) to client
+        #board_update_failed_payload{} | % server reply to client
+        #board_update_succeeded_payload{} | % server reply to client
+        #welcome_user_payload{} | % server reply to client
+        #reservation_proposal_succeeded_payload{} | % server reply to client
+        #reservation_proposal_failed_payload{} | % server reply to client
+        % server broadcast
+        #board_updated_payload{} | % server broadcast
+        #user_payload{} | % server broadcast (userJoined, userLeft)
+        #reservation_cancelled_payload{} | % server broadcast
+        #reservation_expired_payload{} | % server broadcast
+        #canvas_object_reserved_payload{} % server broadcast
 }).

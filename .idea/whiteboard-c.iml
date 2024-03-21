@@ -35,9 +35,7 @@
       <sourceFolder url="file://$MODULE_DIR$/frontend" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/frontend/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.idea/copilot/chatSessions" />
-      <excludeFolder url="file://$MODULE_DIR$/backend/_build/default/lib" />
       <excludeFolder url="file://$MODULE_DIR$/backend/_build/default/lib/backend" />
-      <excludeFolder url="file://$MODULE_DIR$/backend/_build/test/lib" />
       <excludeFolder url="file://$MODULE_DIR$/backend/_build/test/lib/backend" />
     </content>
     <orderEntry type="inheritedJdk" />

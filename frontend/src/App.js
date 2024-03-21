@@ -55,8 +55,8 @@ export default class App extends React.Component {
     this.canvasRef = React.createRef(null)
     this.canvasScrollRef = React.createRef(null)
     
-    [this.objectsState, this.objectsUpdate] = React.useState([])
-    this.session = new Session(objectsState, objectsUpdate)
+    // const [objectsState, objectsUpdate] = React.useState([])
+    // this.session = new Session(objectsState, objectsUpdate)
   }
 
   // Set current tool to another

@@ -3,31 +3,32 @@
 -include("event_payloads_records.hrl").
 
 -export([
-    parse/1,
+    json_to_event/1,
     event_to_json/1
 ]).
 
-parse(Json) ->
+-spec json_to_event(binary()) -> {ok, #event{}} | {error, binary()}.
+json_to_event(Json) ->
     case jsone:try_decode(Json, [{object_format, proplist}]) of
-        {ok, PropList, _Remaining} ->
-            parse_proplist(PropList);
+        {ok, PropList, _RemainingJson} ->
+            proplist_to_event(PropList);
         {error, _} -> 
             {error, <<"Invalid JSON">>}
     end.
 
-parse_proplist(PropList) ->
+proplist_to_event(PropList) ->
     case proplists:get_value(<<"eventType">>, PropList) of
         undefined -> 
             {error, <<"eventType is not provided">>};
         EventType ->
-            parse_event(EventType, PropList)
+            proplist_to_event(EventType, PropList)
     end.
 
-parse_event(<<"begin">>, PropList) ->
+proplist_to_event(<<"begin">>, PropList) ->
     {ok, #event{
         eventType = 'begin',
         eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
-        eventContent = #begin_payload{
+        eventPayload = #begin_payload{
             sessionType = case proplists:get_value(<<"sessionType">>, PropList, undefined) of
                 undefined -> undefined;
                 <<"new">> -> new;
@@ -38,37 +39,177 @@ parse_event(<<"begin">>, PropList) ->
             lastEventId = proplists:get_value(<<"lastEventId">>, PropList, undefined)
         }
     }};
-parse_event(<<"reservationProposed">>, PropList) ->
+proplist_to_event(<<"reservationProposed">>, PropList) ->
     {ok, #event{
         eventType = reservationProposed,
         eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
-        eventContent = #reservation_proposed_payload{
+        eventPayload = #reservation_proposed_payload{
             canvasObjectId = proplists:get_value(<<"canvasObjectId">>, PropList, undefined),
             proposalId = proplists:get_value(<<"proposalId">>, PropList, undefined)
         }
     }};
-parse_event(<<"boardUpdateProposed">>, PropList) ->
+proplist_to_event(<<"boardUpdateProposed">>, PropList) ->
     {ok, #event{
         eventType = boardUpdateProposed,
         eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
-        eventContent = #board_update_proposed_payload{
+        eventPayload = #board_update_proposed_payload{
             proposalId = proplists:get_value(<<"proposalId">>, PropList, undefined),
-            update = proplists:get_value(<<"update">>, PropList, undefined), % TODO: What to do parse and event_to_json or just proplist?
+            update = proplist_to_update_payload(proplists:get_value(<<"update">>, PropList, undefined)),
             intermediate = proplists:get_value(<<"intermediate">>, PropList, undefined)
         }
     }};
-parse_event(<<"reservationCancellationRequested">>, PropList) ->
+proplist_to_event(<<"reservationCancellationRequested">>, PropList) ->
     {ok, #event{
         eventType = reservationCancellationRequested,
         eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
-        eventContent = #reservation_cancellation_requested_payload{
+        eventPayload = #reservation_cancellation_requested_payload{
             reservationId = proplists:get_value(<<"reservationId">>, PropList, undefined)
         }
-    }}.
+    }};
+proplist_to_event(<<"undoRequested">>, PropList) ->
+    {ok, #event{
+        eventType = undoRequested,
+        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
+        eventPayload = undefined
+    }};
+proplist_to_event(<<"redoRequested">>, PropList) ->
+    {ok, #event{
+        eventType = redoRequested,
+        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
+        eventPayload = undefined
+    }};
+proplist_to_event(EventType, _) ->
+    {error, io_lib:format(<<"unexpected eventType">>, [EventType])}.
+
+proplist_to_update_payload(PropList) ->
+    #update_payload{
+        canvasObjectId = proplists:get_value(<<"canvasObjectId">>, PropList, undefined),
+        canvasObjectType = case proplists:get_value(<<"canvasObjectType">>, PropList, undefined) of
+            undefined -> undefined;
+            <<"stickyNote">> -> stickyNote;
+            <<"image">> -> image;
+            <<"comment">> -> comment;
+            <<"canvas">> -> canvas;
+            _ -> undefined
+        end,
+        operationType = case proplists:get_value(<<"operation">>, PropList, undefined) of
+            undefined -> undefined;
+            <<"create">> -> create;
+            <<"update">> -> update;
+            <<"delete">> -> delete;
+            <<"draw">> -> draw;
+            <<"erase">> -> erase;
+            _ -> undefined
+        end,
+        operation = proplist_to_canvas_object_operation(
+            proplists:get_value(<<"operation">>, PropList, undefined))
+    }.
+
+proplist_to_canvas_object_operation(PropList) ->
+    case proplists:get_value(<<"canvasObjectOperationType">>, PropList, undefined) of
+        undefined -> undefined;
+        CanvasObjectOperationType -> #canvas_object_operation{
+            canvasObjectOperationType = CanvasObjectOperationType,
+            canvasObjectOperationPayload = proplist_to_canvas_object_operation_payload(
+                CanvasObjectOperationType, PropList)
+        }
+    end.
+
+proplist_to_canvas_object_operation_payload(_CanvasObjectOperationType, PropList) ->
+    PropList.
 
 -spec event_to_json(#event{}) -> binary().
-event_to_json(#event{eventId = EventId, eventType = EventType, eventContent = Record}) ->
-    jsone:encode([{<<"eventId">>, EventId}, {<<"eventType">>, EventType} | payload_to_proplist(Record)]).
+event_to_json(
+    #event{
+        eventId = EventId,
+        eventType = EventType,
+        eventPayload = EventPayload
+    }) ->
+    jsone:encode([
+        {<<"eventId">>, EventId},
+        {<<"eventType">>, EventType} | payload_to_proplist(EventPayload)]).
 
-payload_to_proplist(#welcome_user_payload{userId = UserId, sessionToken = SessionToken}) ->
-    [{<<"userId">>, UserId}, {<<"sessionToken">>, SessionToken}].
+% server (reply) to client
+payload_to_proplist(
+    #welcome_user_payload{
+        userId = UserId,
+        sessionToken = SessionToken
+    }) ->
+    [{<<"userId">>, UserId}, {<<"sessionToken">>, SessionToken}];
+payload_to_proplist(
+    #reservation_proposal_succeeded_payload{
+        proposalId = ProposalId,
+        reservationId = ReservationId,
+        expirationTimestamp = ExpirationTimestamp
+    }) ->
+    [
+        {<<"proposalId">>, ProposalId},
+        {<<"reservationId">>, ReservationId},
+        {<<"expirationTimestamp">>, ExpirationTimestamp}
+    ];
+payload_to_proplist(
+    #reservation_proposal_failed_payload{
+        proposalId = ProposalId,
+        errorMessage = ErrorMessage
+    }) ->
+    [{<<"proposalId">>, ProposalId}, {<<"errorMessage">>, ErrorMessage}];
+payload_to_proplist(
+    #board_update_succeeded_payload{
+        proposalId = ProposalId
+    }) ->
+    [{<<"proposalId">>, ProposalId}];
+payload_to_proplist(
+    #board_update_failed_payload{
+        proposalId = ProposalId,
+        errorMessage = ErrorMessage
+    }) ->
+    [{<<"proposalId">>, ProposalId}, {<<"errorMessage">>, ErrorMessage}];
+
+% server broadcast
+payload_to_proplist(
+    #board_updated_payload{
+        updateId = ChangeId,
+        userId = UserId,
+        intermediate = Intermediate,
+        update = Update
+    }) ->
+    [
+        {<<"updateId">>, ChangeId},
+        {<<"userId">>, UserId},
+        {<<"intermediate">>, Intermediate},
+        {<<"update">>, update_payload_to_proplist(Update)}
+    ];
+payload_to_proplist(#user_payload{userId = UserId}) -> [{<<"userId">>, UserId}];
+payload_to_proplist(
+    #reservation_cancelled_payload{reservationId = ReservationId}) ->
+    [{<<"reservationId">>, ReservationId}];
+payload_to_proplist(
+    #reservation_expired_payload{reservationId = ReservationId}) ->
+    [{<<"reservationId">>, ReservationId}];
+payload_to_proplist(
+    #canvas_object_reserved_payload{
+        reservationId = ReservationId,
+        canvasObjectId = CanvasObjectId
+    }) ->
+    [{<<"reservationId">>, ReservationId}, {<<"canvasObjectId">>, CanvasObjectId}].
+
+update_payload_to_proplist(
+    #update_payload{
+        canvasObjectId = CanvasObjectId,
+        canvasObjectType = CanvasObjectType,
+        operationType = OperationType,
+        operation = Operation
+    }) ->
+    [
+        {<<"canvasObjectId">>, CanvasObjectId},
+        {<<"canvasObjectType">>, CanvasObjectType},
+        {<<"operationType">>, OperationType},
+        {<<"operation">>, canvas_object_operation_to_proplist(Operation)}
+    ].
+
+canvas_object_operation_to_proplist(
+    #canvas_object_operation{
+        canvasObjectOperationType = CanvasObjectOperationType,
+        canvasObjectOperationPayload = CanvasObjectOperationPayload
+    }) ->
+    [{<<"canvasObjectOperationType">>, CanvasObjectOperationType} | CanvasObjectOperationPayload].

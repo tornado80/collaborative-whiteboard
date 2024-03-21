@@ -22,4 +22,4 @@ handle_create_board(Req0, State) ->
     {ok, BoardId} = boards_manager_service:create_board(),
     Body = jsone:encode([{<<"boardId">>, BoardId}]),
     Req1 = cowboy_req:set_resp_body(Body, Req0),
-    {{created, BoardId}, Req1, State}.
+    {{created, <<"/boards/", BoardId/binary>>}, Req1, State}.

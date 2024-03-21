@@ -6,11 +6,36 @@ info:
     A collaborative whiteboard is a shared digital whiteboard that allows multiple users to draw, write, and erase content in real-time. 
     This API allows you to manage the whiteboard and its content.
 paths:
+  /:
+    get:
+      responses:
+        '303':
+          description: Create board and redirect to React App
+          headers:
+            Location:
+              schema:
+                type: string
+                example: /boards/123e4567-e89b-12d3-a456-426614174000
+  /boards/{boardId}:
+    get:
+      responses:
+        '200':
+          description: React App
+          content:
+            text/html:
+              schema:
+                type: string
   /api/rest/boards:
     post:
       responses:
-        '200':
+        '201':
           description: New board with the returned id is created
+          headers:
+            Location:
+              schema:
+                type: string
+                format: uuid
+                example: 123e4567-e89b-12d3-a456-426614174000
           content:
             application/json:
               schema:
@@ -53,7 +78,7 @@ paths:
               format: binary
         required: true
       responses:
-        '200':
+        '201':
           description: An image blob is created with the returned id
           content:
             application/json:

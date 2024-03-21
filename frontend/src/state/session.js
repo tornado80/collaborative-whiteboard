@@ -6,17 +6,25 @@ function wsPathOnsameHost(path) {
     return (loc.protocol === "https:" ? "wss" : "ws") + "://" + loc.host + path;
 }
 
+function extractBoardIdFromPath() {
+    const match = window.location.pathname.match(/\/boards\/(\d+)/)
+    if (match) {
+        return parseInt(match[1])
+    }
+    return null
+}
+
 export class Session {
-    constructor(state, update, boardId) {
+    constructor(state, update) {
         this._state = state
         this._updateState = update
-        this._boardId = boardId
+        this._boardId = extractBoardIdFromPath()
         this._eventId = 1
         this._ready = false
         this._mutationEventBuf = []
 
         // Open WebSocket Session, receive should handle here
-        this._ws = new WebSocket(wsPathOnsameHost(`/api/ws/boards/${boardId}`))
+        this._ws = new WebSocket(wsPathOnsameHost(`/api/ws/boards/${this._boardId}`))
 
         this._ws.onmessage = event => {
             const eventData = JSON.parse(event.data)
@@ -26,39 +34,12 @@ export class Session {
                 case "welcomeUser":
                     // TODO: Save session information (e.g. ID & token)
                     this._fetchInitialState()
-
-                case "reservationCancelled":
-
-                case "reservationExpired":
-                
-                case "canvasObjectReserved":
-
-                case "userJoined":
-
-                case "userLeft":
-
-                case "boardUpdated":
-
-
-                case "reservationProposalSucceeded":
-
-                case "reservationProposalFailed":
-
-                case "boardUpdateSucceeded":
-
-                case "boardUpdateFailed":
-
-                    
+                    break;
             }
         }
 
         this._ws.onopen = () => {
-            switch(eventData.eventType) {
-                case "begin":
-                    // TODO: Save session information (e.g. ID & token)
-                    this._fetchInitialState()
-          };
-
+        }
         this._sessionId = 123
         this._sessionToken = "asddfqwerty123"
     }

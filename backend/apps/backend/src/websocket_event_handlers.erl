@@ -10,7 +10,7 @@
 handle_event(
         #event{
             eventType = 'begin',
-            eventContent = #begin_payload{
+            eventPayload = #begin_payload{
                 lastEventId = LastEventId,
                 sessionToken = SessionToken,
                 sessionType = SessionType
@@ -27,7 +27,7 @@ handle_event(
         {new, _, _} -> 
             {ok, SessionToken, UserId} = board_controller_service:new_session(Pid),
             NewEventContent = #welcome_user_payload{userId = UserId, sessionToken = SessionToken},
-            WelcomeData = websocket_event_parser:event_to_json(WelcomeEvent#event{eventContent = NewEventContent}),
+            WelcomeData = websocket_event_parser:event_to_json(WelcomeEvent#event{eventPayload = NewEventContent}),
             {[{text, WelcomeData}], NewState#websocket_handler_state{sessionToken = SessionToken}};
         {continue, undefined, _} -> 
             {[{close, <<"session token is not provided">>}], NewState};
@@ -36,7 +36,7 @@ handle_event(
         {continue, SessionToken0, LastEventId} when is_integer(LastEventId), is_binary(SessionToken0) -> 
             {ok, SessionToken1, UserId} = board_controller_service:continue_session(Pid, SessionToken0),
             NewEventContent = #welcome_user_payload{userId = UserId, sessionToken = SessionToken1},
-            WelcomeData = websocket_event_parser:event_to_json(WelcomeEvent#event{eventContent = NewEventContent}),
+            WelcomeData = websocket_event_parser:event_to_json(WelcomeEvent#event{eventPayload = NewEventContent}),
             {[{text, WelcomeData}], NewState#websocket_handler_state{sessionToken = SessionToken1}};
         {continue, _, _} ->
             {[{close, <<"malformed begin event">>}], NewState};
@@ -46,7 +46,7 @@ handle_event(
 handle_event(
         #event{
             eventType = reservationProposed,
-            eventContent = #reservation_proposed_payload{
+            eventPayload = #reservation_proposed_payload{
                 canvasObjectId = CanvasObjectId,
                 proposalId = ProposalId
         }}, 
@@ -62,7 +62,7 @@ handle_event(
             SuccessData = websocket_event_parser:event_to_json(
                 BaseEvent#event{
                     eventType = <<"reservationProposalSucceeded">>,
-                    eventContent = #reservation_proposal_succeeded_payload{
+                    eventPayload = #reservation_proposal_succeeded_payload{
                         proposalId = ProposalId,
                         reservationId = ReservationId,
                         expirationTimestamp = ExpirationTimeStamp
@@ -73,7 +73,7 @@ handle_event(
         {error, Error} ->
             FailureData = websocket_event_parser:event_to_json(BaseEvent#event{
                 eventType = <<"reservationProposalFailed">>,
-                eventContent = #reservation_proposal_failed_payload{
+                eventPayload = #reservation_proposal_failed_payload{
                     proposalId = ProposalId,
                     errorMessage = Error
                 }
@@ -83,7 +83,7 @@ handle_event(
 handle_event(
         #event{
             eventType = reservationCancellationRequested,
-            eventContent = #reservation_cancellation_requested_payload{
+            eventPayload = #reservation_cancellation_requested_payload{
                 reservationId = ReservationId
             }
         },
@@ -96,7 +96,7 @@ handle_event(
 handle_event(
         #event{
             eventType = boardUpdateProposed,
-            eventContent = #board_update_proposed_payload{
+            eventPayload = #board_update_proposed_payload{
                 proposalId = ProposalId,
                 update = Update
             }
@@ -112,7 +112,7 @@ handle_event(
                 #event{
                     eventId = NextEventId,
                     eventType = <<"boardUpdateSucceeded">>,
-                    eventContent = #board_update_succeeded_payload{
+                    eventPayload = #board_update_succeeded_payload{
                         proposalId = ProposalId
                     }
                 }
@@ -123,7 +123,7 @@ handle_event(
                 #event{
                     eventId = NextEventId,
                     eventType = <<"boardUpdateFailed">>,
-                    eventContent = #board_update_failed_payload{
+                    eventPayload = #board_update_failed_payload{
                         proposalId = ProposalId,
                         errorMessage = Error
                     }
@@ -150,4 +150,6 @@ handle_event(
             sessionToken = SessionToken
         }) ->
     board_controller_service:redo(Pid, SessionToken),
-    {[{active, true}], State}.
+    {[{active, true}], State};
+handle_event(Event, State) ->
+    {[{close, io_lib:format(<<"unexpected event: ~p">>, [Event])}], State}.

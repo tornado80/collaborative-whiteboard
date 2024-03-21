@@ -36,8 +36,8 @@ find_board_controller_service(Req, State) ->
 websocket_init(State) ->
     {ok, State}.
 
-websocket_handle(_Frame = {text, Data}, State) ->
-    case websocket_event_parser:parse(Data) of
+websocket_handle(_Frame = {text, Json}, State) ->
+    case websocket_event_parser:json_to_event(Json) of
         {ok, Event} -> 
             websocket_event_handlers:handle_event(Event, State);
         {error, Reason} -> 
@@ -54,25 +54,25 @@ websocket_handle(_Frame, State) ->
 websocket_info(_ErlangMsg, State) ->
     {[{active, true}], State}.
 
-terminate(remote, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate({remote, _, _}, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate(stop, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftPermanently);
-terminate(timeout, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftTemporarily);
-terminate({error, _}, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftTemporarily);
-terminate(normal, _PartialReq, State) ->
-    inform_board_controller_service_of_termination(State, userLeftTemporarily).
+terminate(Reason = remote, _PartialReq, State) -> % client closed the connection
+    inform_board_controller_service_of_ws_termination(State, {userLeftPermanently, Reason});
+terminate(Reason = {remote, _Code, _Payload}, _PartialReq, State) -> % client closed the connection
+    inform_board_controller_service_of_ws_termination(State, {userLeftPermanently, Reason});
+terminate(Reason = stop, _PartialReq, State) -> % server closed the connection
+    inform_board_controller_service_of_ws_termination(State, {userLeftPermanently, Reason});
+terminate(Reason = timeout, _PartialReq, State) -> % connection closed due to inactivity
+    inform_board_controller_service_of_ws_termination(State, {userLeftPermanently, Reason});
+terminate(Reason = {error, _Error}, _PartialReq, State) -> % socket error
+    inform_board_controller_service_of_ws_termination(State, {userLeftTemporarily, Reason});
+terminate(Reason = {crash, _Class, _Reason}, _PartialReq, State) -> % handler crash
+    inform_board_controller_service_of_ws_termination(State, {userLeftPermanently, Reason});
+terminate(normal, _PartialReq, _State) -> ok.
 
 % Internals
 
-inform_board_controller_service_of_termination(State, Status) ->
-    board_controller_service:unsubscribe_from_board(
+inform_board_controller_service_of_ws_termination(State, Reason) ->
+    board_controller_service:end_session(
         State#websocket_handler_state.boardControllerPid, 
-        State#websocket_handler_state.sessionToken, 
-        self(), 
-        Status),
+        State#websocket_handler_state.sessionToken,
+        Reason),
     ok.
