@@ -9,7 +9,7 @@ websocket_handler_test() ->
 
     % Act
     {ok, Pid} = gun:open("localhost", 8080),
-    StreamRef = gun:ws_upgrade(Pid, "/api/ws/boards/"),
+    StreamRef = gun:ws_upgrade(Pid, <<"/api/ws/boards/", "3a79cd00-e5be-40c5-b4">>),
     {ok, Message} = gun:await(Pid, StreamRef),
 
     % Assert
