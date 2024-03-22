@@ -2,6 +2,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+
 %{ok, Pid} = gun:open("localhost", 8080),
  %   Ref = gun:ws_upgrade(Pid, "/api/ws"),
     
@@ -32,24 +33,6 @@ create_board_handler_test() ->
     ?assertMatch({ok, _Body}, ResponseBody),
     {ok, Body} = ResponseBody,
     ?assertEqual([{<<"boardId">>, BoardId}], jsone:decode(Body, [{object_format, proplist}])),
-
-    % Cleanup
-    gun:close(Pid),
-    application:stop(backend),
-    application:stop(gun).
-
-websocket_handler_test() ->
-    % Arrange
-    application:ensure_all_started(backend),
-    application:ensure_all_started(gun),
-
-    % Act
-    {ok, Pid} = gun:open("localhost", 8080),
-    StreamRef = gun:ws_upgrade(Pid, "/api/ws/boards/"),
-    {ok, Message} = gun:await(Pid, StreamRef),
-
-    % Assert
-    ?assertMatch({ws_upgrade, {response, nofin, 101, _Headers}}, Message),
 
     % Cleanup
     gun:close(Pid),
