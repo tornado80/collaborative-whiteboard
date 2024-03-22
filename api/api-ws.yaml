@@ -537,6 +537,11 @@ components:
               type: string
               format: uuid
               description: Secret session token allocated to the user
+            userName:
+              type: string
+              description: User name
+            color:
+              $ref: '#/components/schemas/color'
     userPayload:
       allOf:
         - $ref: '#/components/schemas/event'
@@ -551,6 +556,11 @@ components:
               type: string
               format: uuid
               description: User unique identifier
+            userName:
+              type: string
+              description: User name
+            color:
+              $ref: '#/components/schemas/color'
     reservationProposedPayload:
       allOf:
         - $ref: '#/components/schemas/event'

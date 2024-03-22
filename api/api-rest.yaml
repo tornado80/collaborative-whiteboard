@@ -6,7 +6,7 @@ info:
     A collaborative whiteboard is a shared digital whiteboard that allows multiple users to draw, write, and erase content in real-time. 
     This API allows you to manage the whiteboard and its content.
 paths:
-  /:
+  /new:
     get:
       responses:
         '303':
@@ -121,7 +121,7 @@ components:
           type: string
           format: uuid
           example: 123e4567-e89b-12d3-a456-426614174000 
-        zindex:
+        zIndex:
           type: integer
           format: int64
           example: 1000
@@ -132,6 +132,8 @@ components:
           enum:
             - StickyNote
             - Image
+            - Comment
+            - Curve
       discriminator:
         propertyName: canvasObjectType
       required:
@@ -174,19 +176,25 @@ components:
               format: uuid
               example: 123e4567-e89b-12d3-a456-426614174000
     Comment:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000
-        text:
-          type: string
-          example: 'This is a comment'
-        timestamp:
-          type: integer
-          format: int64
-          example: 123456789
+      allOf:
+        - $ref: '#/components/schemas/CanvasObject'
+        - type: object
+          properties:
+            canvasObjectType:
+              type: string
+              enum:
+                - Comment
+            text:
+              type: string
+              example: 'This is a comment'
+            timestamp:
+              type: integer
+              format: int64
+              example: 123456789
+            imageId:
+              type: string
+              format: uuid
+              example: 123e4567-e89b-12d3-a456-426614174000
     Vector2:
       type: object
       properties:
@@ -199,18 +207,20 @@ components:
           format: int64
           example: 100
     Curve:
-      type: object
-      properties:
-        canvasObjectType:
-          type: string
-          enum:
-            - Curve
-        points:
-          type: array
-          items:
-            $ref: '#/components/schemas/Vector2'
-        color:
-          $ref: '#/components/schemas/Color'
+      allOf:
+        - $ref: '#/components/schemas/CanvasObject'
+        - type: object
+          properties:
+            canvasObjectType:
+              type: string
+              enum:
+                  - Curve
+            points:
+              type: array
+              items:
+                $ref: '#/components/schemas/Vector2'
+            color:
+              $ref: '#/components/schemas/Color'
     Board:
       type: object
       properties:
@@ -219,6 +229,7 @@ components:
           items:
             oneOf:
               - $ref: '#/components/schemas/StickyNote'
+              - $ref: '#/components/schemas/Comment'
               - $ref: '#/components/schemas/Image'
               - $ref: '#/components/schemas/Curve'
             discriminator:
