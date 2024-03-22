@@ -161,10 +161,6 @@ components:
               type: string
               enum:
                 - Image
-            comments:
-              type: array
-              items:
-                $ref: '#/components/schemas/Comment'
             width:
               type: integer
               format: int64
