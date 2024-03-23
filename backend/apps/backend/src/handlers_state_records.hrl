@@ -15,5 +15,6 @@
     sessionRef :: reference(),
     sessionToken :: binary(),
     boardId :: binary(),
-    boardControllerPid :: pid()
+    boardControllerPid :: pid(),
+    boardControllerRef :: reference()
 }).

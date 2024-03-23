@@ -258,10 +258,10 @@ components:
           properties:
             canvasObjectOperationType:
               const: erase
-            size:
+            radius:
               type: integer
               format: int64
-              description: Eraser square size
+              description: Eraser radius size
             centers:
               type: array
               items:

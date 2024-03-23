@@ -120,11 +120,7 @@ components:
         id:
           type: string
           format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000 
-        zIndex:
-          type: integer
-          format: int64
-          example: 1000
+          example: 123e4567-e89b-12d3-a456-426614174000
         position:
           $ref: '#/components/schemas/Vector2'
         canvasObjectType:
@@ -133,7 +129,8 @@ components:
             - StickyNote
             - Image
             - Comment
-            - Curve
+            - DrawCurve
+            - EraseCurve
       discriminator:
         propertyName: canvasObjectType
       required:
@@ -150,6 +147,10 @@ components:
             text:
               type: string
               example: 'This is a sticky note'
+            zIndex:
+              type: integer
+              format: int64
+              example: 1000
             color:
               $ref: '#/components/schemas/Color'
     Image:
@@ -165,6 +166,10 @@ components:
               type: integer
               format: int64
               example: 100
+            zIndex:
+              type: integer
+              format: int64
+              example: 1000
             size:
               $ref: '#/components/schemas/Vector2'
             blobId:
@@ -202,7 +207,7 @@ components:
           type: integer
           format: int64
           example: 100
-    Curve:
+    EraseCurve:
       allOf:
         - $ref: '#/components/schemas/CanvasObject'
         - type: object
@@ -210,7 +215,23 @@ components:
             canvasObjectType:
               type: string
               enum:
-                  - Curve
+                - EraseCurve
+            points:
+              type: array
+              items:
+                $ref: '#/components/schemas/Vector2'
+            radius:
+              type: integer
+              format: int64
+    DrawCurve:
+      allOf:
+        - $ref: '#/components/schemas/CanvasObject'
+        - type: object
+          properties:
+            canvasObjectType:
+              type: string
+              enum:
+                  - DrawCurve
             points:
               type: array
               items:
@@ -227,7 +248,8 @@ components:
               - $ref: '#/components/schemas/StickyNote'
               - $ref: '#/components/schemas/Comment'
               - $ref: '#/components/schemas/Image'
-              - $ref: '#/components/schemas/Curve'
+              - $ref: '#/components/schemas/DrawCurve'
+              - $ref: '#/components/schemas/EraseCurve'
             discriminator:
               propertyName: canvasObjectType
         name:

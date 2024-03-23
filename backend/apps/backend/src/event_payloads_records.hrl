@@ -106,7 +106,7 @@
 
 -record(erase_payload, {
     centers :: [#vector2{}],
-    size :: integer()
+    radius :: integer()
 }).
 
 -record(canvas_object_operation, {

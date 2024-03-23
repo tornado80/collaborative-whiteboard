@@ -1,56 +1,49 @@
 -include("common_records.hrl").
 
 -record(comment, {
-    id :: binary(),
+    %id :: binary(),
     text :: binary(),
     timestamp :: integer(),
-    imageId :: binary(),
-    reservedBy :: reference()
+    imageId :: binary()
 }).
 
 -record(image, {
-    id :: binary(),
+    %id :: binary(),
     zIndex :: integer(),
     position :: #vector2{},
     color :: binary(),
     width :: integer(),
     size :: #vector2{},
-    blobId :: binary(),
-    reservedBy :: reference()
+    blobId :: binary()
 }).
 
 -record(drawing_curve, {
-    id :: binary(),
-    zIndex :: integer(),
+    %id :: binary(),
     points :: [#vector2{}],
     color :: binary()
 }).
 
 -record(erasing_curve, {
+    %id :: binary(),
     centers :: [#vector2{}],
-    size :: integer()
+    radius :: integer()
 }).
 
 -record(stickyNote, {
-    id :: binary(),
+    %id :: binary(),
     zIndex :: integer(),
     position :: #vector2{},
     color :: binary(),
-    text :: binary(),
-    reservedBy :: reference()
+    text :: binary()
 }).
 
 -record(update, {
     id :: integer(),
     objectId :: binary(),
-    objectType :: image | curve | stickyNote | comment,
+    objectType :: image | drawingCurve | stickyNote | comment | erasingCurve,
     operationType :: create | update | delete,
-    operation ::
-        createImage | createCurve | createStickyNote | createComment |
-        updateImage | updateStickyNote | updateComment |
-        deleteImage | deleteCurve | deleteStickyNote | deleteComment,
-    oldState :: undefined | #comment{} | #image{} | #drawing_curve{} | #erasing_curve{} | #stickyNote{},
-    newState :: undefined | #comment{} | #image{} | #drawing_curve{} | #erasing_curve{} | #stickyNote{}
+    oldValue :: undefined | #comment{} | #image{} | #drawing_curve{} | #erasing_curve{} | #stickyNote{},
+    newValue :: undefined | #comment{} | #image{} | #drawing_curve{} | #erasing_curve{} | #stickyNote{}
 }).
 
 -record(session, {
@@ -61,13 +54,14 @@
     status :: online | offline,
     sessionToken :: binary(),
     undoStack :: [#update{}],
-    redoStack :: [#update{}]
+    redoStack :: [#update{}],
+    inactivityTimerRef :: reference()
 }).
 
 -record(board, {
     id :: binary(),
     name :: binary(),
     sessions :: [#session{}],
-    objects :: [#image{} | #drawing_curve{} | #stickyNote{} | #comment{}],
+    objects :: [#image{} | #drawing_curve{} | #stickyNote{} | #comment{} | #erasing_curve{}],
     lastUpdateId :: integer()
 }).

@@ -29,8 +29,12 @@ find_board_controller_service(Req, State) ->
         notfound -> 
             cowboy_req:reply(404, Req),
             {ok, Req, State};
-        {ok, BoardControllerPid} -> 
-            {cowboy_websocket, Req, State#websocket_handler_state{boardControllerPid = BoardControllerPid}}
+        {ok, BoardControllerPid} ->
+            Ref = erlang:monitor(process, BoardControllerPid),
+            {cowboy_websocket, Req, State#websocket_handler_state{
+                boardControllerPid = BoardControllerPid,
+                boardControllerRef = Ref}
+            }
     end.
 
 websocket_init(State) ->
@@ -54,6 +58,10 @@ websocket_handle(_Frame, State) ->
 websocket_info({broadcast, Event}, State) ->
     Json = websocket_event_parser:event_to_json(Event),
     {[{text, Json}], State};
+websocket_info({'DOWN', Ref, process, Pid, _Reason}, State = #websocket_handler_state{boardControllerRef = Ref}) ->
+    lager:info("Board controller ~p is down", [Pid]),
+    {[{close, <<"board controller is down">>}], State#websocket_handler_state{
+        boardControllerPid = undefined, boardControllerRef = undefined}};
 websocket_info(_ErlangMsg, State) ->
     {[{active, true}], State}.
 
@@ -74,8 +82,8 @@ terminate(normal, _PartialReq, _State) -> ok.
 % Internals
 
 inform_board_controller_service_of_ws_termination(State, Reason) ->
-    board_controller_service:end_session(
-        State#websocket_handler_state.boardControllerPid, 
-        State#websocket_handler_state.sessionRef,
-        Reason),
-    ok.
+    case State#websocket_handler_state.boardControllerPid of
+        undefined -> ok;
+        BoardControllerPid ->
+            board_controller_service:end_session(BoardControllerPid, State#websocket_handler_state.sessionRef, Reason)
+    end.
