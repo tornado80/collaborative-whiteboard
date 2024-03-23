@@ -169,7 +169,7 @@ init({BoardId, SupervisorPid}) ->
         board_objects_table = ObjectsTable,
         reservations_table = ReservationsTable,
         curves_updater_timer_ref = CurvesUpdaterTimerRef,
-        inactivity_timer_ref = undefined
+        inactivity_timer_ref = do_schedule_board_inactivity_timer()
     }}.
 
 handle_call(get_board_state, _From, State) ->
@@ -469,11 +469,12 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
     end,
     {noreply, State};
 handle_info({shutdown, _}, State) ->
+    lager:info("Shutting down board controller service for board ~p at ~p", [State#state.board_id, self()]),
     timer:cancel(State#state.curves_updater_timer_ref),
     do_apply_erasing_curves_to_canvas(State#state.board_objects_table),
     ok = prepare_database_for_shutdown(State#state.supervisor_pid),
-    exit(State#state.supervisor_pid, shutdown),
-    {stop, normal, State};
+    spawn(fun() -> supervisor:terminate_child(backend_sup, State#state.board_id) end),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -608,11 +609,14 @@ cancel_board_inactivity_timer(State) ->
 schedule_board_inactivity_timer_if_needed(State) ->
     case State#state.user_count of
         1 ->
-            InactivityTimerRef = timer:send_after(60000, {shutdown, self()}),
+            InactivityTimerRef = do_schedule_board_inactivity_timer(),
             State#state{inactivity_timer_ref = InactivityTimerRef};
         _ ->
             State
     end.
+
+do_schedule_board_inactivity_timer() ->
+    timer:send_after(60000, {shutdown, self()}).
 
 cancel_session_inactivity_timer(Session) ->
     case Session#session.inactivityTimerRef of
