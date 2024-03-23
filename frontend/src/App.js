@@ -296,19 +296,28 @@ export default class App extends React.Component {
 
   // Called when modal "form" is submitted and changes the board state.
   addStickyNote() {
-    //this.state.actionPos.x
-    //this.state.actionPos.y
-    //this.state.stickyNoteText
+    const payload = {
+      update: {
 
-    
+            //this.state.actionPos.x
+            //this.state.actionPos.y
+            //this.state.stickyNoteText
+
+      },
+    };
+  
+    // Convert the payload to JSON
+    const payloadJSON = JSON.stringify(payload);
+  
+    // Send the payload through the WebSocket connection
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(payloadJSON);
+    } else {
+      console.error('WebSocket connection is not open.');
+    }
+  
+    // Reset the action state after sending the payload
     this.resetActionState();
-
-    // Wait until action gets confirmed
-    // Alert if proposal was not successful
-    // alert("Feture not implemented (yet)")
-
-    // this.resetActionState()
-
 
   }
 
@@ -320,9 +329,30 @@ export default class App extends React.Component {
 
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    alert("Feture not implemented (yet)")
 
-    this.resetActionState()
+
+    const payload = {
+      update: {
+
+                //this.state.actionPos.x
+                //this.state.actionPos.y
+                //this.state.imgToUpload
+
+      },
+    };
+  
+    // Convert the payload to JSON
+    const payloadJSON = JSON.stringify(payload);
+  
+    // Send the payload through the WebSocket connection
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(payloadJSON);
+    } else {
+      console.error('WebSocket connection is not open.');
+    }
+  
+    // Reset the action state after sending the payload
+    this.resetActionState();
   }
 
   // Called when modal "form" is submitted and changes the board state.
@@ -333,9 +363,28 @@ export default class App extends React.Component {
 
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    alert("Feture not implemented (yet)")
+    const payload = {
+      update: {
 
-    this.resetActionState()
+      //this.state.actionPos.x
+    //this.state.actionPos.y
+    //this.state.commentText
+
+      },
+    };
+  
+    // Convert the payload to JSON
+    const payloadJSON = JSON.stringify(payload);
+  
+    // Send the payload through the WebSocket connection
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(payloadJSON);
+    } else {
+      console.error('WebSocket connection is not open.');
+    }
+  
+    // Reset the action state after sending the payload
+    this.resetActionState();
   }
 
   // Called when drag finished and changes the board state.
@@ -343,9 +392,24 @@ export default class App extends React.Component {
 
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    alert("Feture not implemented (yet)")
+    const payload = {
+      update: {
 
-    this.resetActionState()
+      },
+    };
+  
+    // Convert the payload to JSON
+    const payloadJSON = JSON.stringify(payload);
+  
+    // Send the payload through the WebSocket connection
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(payloadJSON);
+    } else {
+      console.error('WebSocket connection is not open.');
+    }
+  
+    // Reset the action state after sending the payload
+    this.resetActionState();
   }
 
   // Called when drag finished and changes the board state.
@@ -353,9 +417,24 @@ export default class App extends React.Component {
 
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    alert("Feture not implemented (yet)")
+    const payload = {
+      update: {
 
-    this.resetActionState()
+      },
+    };
+  
+    // Convert the payload to JSON
+    const payloadJSON = JSON.stringify(payload);
+  
+    // Send the payload through the WebSocket connection
+    if (this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(payloadJSON);
+    } else {
+      console.error('WebSocket connection is not open.');
+    }
+  
+    // Reset the action state after sending the payload
+    this.resetActionState();
   }
 
   /* Canvas rendereing */
