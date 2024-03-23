@@ -1,4 +1,4 @@
--include("common-records.hrl").
+-include("common_records.hrl").
 
 -record(begin_payload, {
     sessionType :: new | continue,
@@ -8,7 +8,9 @@
 
 -record(welcome_user_payload, {
     userId :: binary(),
-    sessionToken :: binary()
+    sessionToken :: binary(),
+    userName :: binary(),
+    color :: binary()
 }).
 
 -record(reservation_proposed_payload, {
@@ -47,7 +49,9 @@
 }).
 
 -record(user_payload, {
-    userId :: binary()
+    userId :: binary(),
+    userName :: binary(),
+    color :: binary()
 }).
 
 -record(create_sticky_note_payload, {
@@ -178,7 +182,6 @@
         board_update_failed |
         board_updated |
         welcome_user,
-    eventId :: integer(),
     eventPayload ::
         % client to server
         #begin_payload{} | % client to server

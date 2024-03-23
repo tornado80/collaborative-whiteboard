@@ -195,10 +195,6 @@ components:
       type: object
       discriminator: eventType
       properties:
-        eventId:
-          type: integer
-          format: int64
-          description: Unique identifier of server sent events (not included in client sent events)
         eventTimestamp:
           type: integer
           format: int64
@@ -240,10 +236,6 @@ components:
               type: string
               format: uuid
               description: Previous session token if sessionType is continue
-            lastEventId:
-              type: integer
-              format: int64
-              description: Last event identifier received by the client
     undoRequestPayload:
       allOf:
         - $ref: '#/components/schemas/event'

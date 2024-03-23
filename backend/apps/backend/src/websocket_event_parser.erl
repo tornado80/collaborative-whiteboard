@@ -27,7 +27,6 @@ proplist_to_event(PropList) ->
 proplist_to_event(<<"begin">>, PropList) ->
     {ok, #event{
         eventType = 'begin',
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = #begin_payload{
             sessionType = case proplists:get_value(<<"sessionType">>, PropList, undefined) of
                 undefined -> undefined;
@@ -42,7 +41,6 @@ proplist_to_event(<<"begin">>, PropList) ->
 proplist_to_event(<<"reservationProposed">>, PropList) ->
     {ok, #event{
         eventType = reservationProposed,
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = #reservation_proposed_payload{
             canvasObjectId = proplists:get_value(<<"canvasObjectId">>, PropList, undefined),
             proposalId = proplists:get_value(<<"proposalId">>, PropList, undefined)
@@ -51,7 +49,6 @@ proplist_to_event(<<"reservationProposed">>, PropList) ->
 proplist_to_event(<<"boardUpdateProposed">>, PropList) ->
     {ok, #event{
         eventType = boardUpdateProposed,
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = #board_update_proposed_payload{
             proposalId = proplists:get_value(<<"proposalId">>, PropList, undefined),
             update = proplist_to_update_payload(proplists:get_value(<<"update">>, PropList, undefined)),
@@ -61,21 +58,18 @@ proplist_to_event(<<"boardUpdateProposed">>, PropList) ->
 proplist_to_event(<<"reservationCancellationRequested">>, PropList) ->
     {ok, #event{
         eventType = reservationCancellationRequested,
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = #reservation_cancellation_requested_payload{
             reservationId = proplists:get_value(<<"reservationId">>, PropList, undefined)
         }
     }};
-proplist_to_event(<<"undoRequested">>, PropList) ->
+proplist_to_event(<<"undoRequested">>, _PropList) ->
     {ok, #event{
         eventType = undoRequested,
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = undefined
     }};
-proplist_to_event(<<"redoRequested">>, PropList) ->
+proplist_to_event(<<"redoRequested">>, _PropList) ->
     {ok, #event{
         eventType = redoRequested,
-        eventId = proplists:get_value(<<"eventId">>, PropList, undefined),
         eventPayload = undefined
     }};
 proplist_to_event(EventType, _) ->
@@ -121,12 +115,10 @@ proplist_to_canvas_object_operation_payload(_CanvasObjectOperationType, PropList
 -spec event_to_json(#event{}) -> binary().
 event_to_json(
     #event{
-        eventId = EventId,
         eventType = EventType,
         eventPayload = EventPayload
     }) ->
     jsone:encode([
-        {<<"eventId">>, EventId},
         {<<"eventType">>, EventType} | payload_to_proplist(EventPayload)]).
 
 % server (reply) to client

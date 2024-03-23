@@ -1,7 +1,7 @@
 -module(board_cache_service).
 -behaviour(gen_server).
 
--export([start_link/1, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export([start_link/2, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 %% API functions
 -export([create_blob/2, try_get_blob/2]).
@@ -10,8 +10,8 @@
 -record(state, {}).
 
 %% API functions
-start_link(BoardId) ->
-    gen_server:start_link(?MODULE, BoardId, []).
+start_link(BoardId, SupervisorPid) ->
+    gen_server:start_link(?MODULE, {BoardId, SupervisorPid}, []).
 
 -spec create_blob(pid(), binary()) -> {ok, binary()}.
 create_blob(Pid, Body) ->
@@ -22,7 +22,9 @@ try_get_blob(Pid, BlobId) ->
     gen_server:call(Pid, {try_get_blob, BlobId}).
 
 %% Callback functions
-init(_BoardId) ->
+init({BoardId, _SupervisorPid}) ->
+    %process_flag(trap_exit, true),
+    boards_manager_service:request_to_be_registered_and_monitored(BoardId, ?MODULE, self()),
     {ok, #state{}}.
 
 handle_call(_Request, _From, State) ->

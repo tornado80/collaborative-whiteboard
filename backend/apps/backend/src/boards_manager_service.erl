@@ -7,7 +7,8 @@
 -export([
     create_board/0, 
     try_get_board_controller_service/1,
-    try_get_board_cache_service/1
+    try_get_board_cache_service/1,
+    request_to_be_registered_and_monitored/3
 ]).
 
 %% State record
@@ -31,12 +32,16 @@ try_get_board_controller_service(_BoardId) ->
 try_get_board_cache_service(_BoardId) ->
     gen_server:call(?SERVER, {try_get_board_cache_service, _BoardId}).
 
+request_to_be_registered_and_monitored(BoardId, Service, Pid) ->
+    gen_server:cast(?SERVER, {register_and_monitor, BoardId, Service, Pid}).
+
 %% Callback functions
 init([]) ->
+    %process_flag(trap_exit, true),
     {ok, boards_table} = dets:open_file(boards_table, [{type, set}, {file, "boards_table"}]),
     boards_table = ets:new(boards_table, [named_table, set]),
     boards_table = dets:to_ets(boards_table, boards_table),
-    board_monitors = ets:new(board_monitors, [named_table, set]),
+    boards_monitors = ets:new(boards_monitors, [named_table, set]),
     {ok, #state{}}.
 
 handle_call(create_board, _From, State) ->
@@ -52,11 +57,49 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
+handle_cast({register_and_monitor, BoardId, Service, Pid}, State) ->
+    case ets:lookup(boards_table, BoardId) of
+        [] ->
+            Ref = erlang:monitor(process, Pid),
+            true = ets:insert(boards_monitors, {Ref, Service, BoardId}),
+            true = ets:insert(boards_table, {BoardId, #{Service => {Pid, Ref}}});
+        [{BoardId}] ->
+            Ref = erlang:monitor(process, Pid),
+            true = ets:insert(boards_monitors, {Ref, Service, BoardId}),
+            true = ets:insert(boards_table, {BoardId, #{Service => {Pid, Ref}}});
+        [{BoardId, Map}] ->
+            case maps:get(Service, Map, undefined) of
+                undefined ->
+                    Ref = erlang:monitor(process, Pid),
+                    true = ets:insert(boards_monitors, {Ref, Service, BoardId}),
+                    true = ets:insert(boards_table, {BoardId, Map#{Service => {Pid, Ref}}});
+                {Pid, _Ref} -> already_registered
+            end
+    end,
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({'DOWN', _Ref, process, _Pid, _Reason}, State) ->
-    % TODO: lookup ref in board_monitors and remove the entry
+handle_info({'DOWN', Ref, process, Pid, _Reason}, State) ->
+    case ets:lookup(boards_monitors, Ref) of
+        [] ->
+            ok;
+        [{Ref, Service, BoardId}] ->
+            true = ets:delete(boards_monitors, Ref),
+            case ets:lookup(boards_table, BoardId) of
+                [] ->
+                    unexpected;
+                [{BoardId}] ->
+                    unexpected;
+                [{BoardId, Map}] ->
+                    case maps:get(Service, Map, undefined) of
+                        {Pid, Ref} ->
+                            ets:insert(boards_table, {BoardId, maps:remove(Service, Map)});
+                        undefined -> ok;
+                        {_NewPid, _Ref} -> ok
+                    end
+            end
+    end,
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -79,21 +122,28 @@ try_get_board_service(Service, BoardId, State) ->
             {Pid, _MonitorRef} = maps:get(Service, Map),
             {reply, {ok, Pid}, State};
         [{BoardId, Map}] ->
-            {Pid, _MonitorRef} = maps:get(Service, Map),
-            {reply, {ok, Pid}, State}
+            case maps:get(Service, Map, undefined) of
+                undefined ->
+                    {reply, notfound, State};
+                {Pid, _MonitorRef} ->
+                    {reply, {ok, Pid}, State}
+            end
     end.
 
 create_new_board_supervisor(BoardId) ->
-    {ok, Supervisor} = supervisor:start_child(backend_sup,
-        #{id => BoardId, start => {board_sup, start_link, [BoardId]}}
+    {ok, Supervisor} = supervisor:start_child(backend_sup, #{
+        id => BoardId,
+        start => {board_sup, start_link, [BoardId]},
+        restart => permanent,
+        shutdown => 5000}
     ),
-    true = ets:insert(boards_table, Entry = {BoardId, monitor_supervisor_and_children(BoardId, Supervisor)}),
+    true = ets:insert(boards_table, Entry = {BoardId, supervisor_and_children_monitors_and_pids(BoardId, Supervisor)}),
     Entry.
 
-monitor_supervisor_and_children(BoardId, Supervisor) ->
+supervisor_and_children_monitors_and_pids(BoardId, Supervisor) ->
     Children = supervisor:which_children(Supervisor),
     MonitorRef = erlang:monitor(process, Supervisor),
-    true = ets:insert(board_monitors, {MonitorRef, board_sup, BoardId}),
+    true = ets:insert(boards_monitors, {MonitorRef, board_sup, BoardId}),
     {_, _, Map} = lists:foldl(
         fun compare_and_monitor_child/2,
         {
@@ -117,7 +167,7 @@ compare_and_monitor_child({Service, Pid, _Type, _Modules}, Acc = {BoardId, Expec
     case lists:member(Service, ExpectedChildren) of
         true ->
             MonitorRef = erlang:monitor(process, Pid),
-            ets:insert(board_monitors, {MonitorRef, Service, BoardId}),
+            ets:insert(boards_monitors, {MonitorRef, Service, BoardId}),
             {BoardId, ExpectedChildren, Map#{Service => {Pid, MonitorRef}}};
         false ->
             Acc

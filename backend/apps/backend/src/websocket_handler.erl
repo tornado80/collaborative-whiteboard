@@ -1,6 +1,7 @@
 -module(websocket_handler).
 
 -include("handlers_state_records.hrl").
+-include("event_payloads_records.hrl").
 
 -export([
     init/2, 
@@ -19,8 +20,7 @@ init(Req, State) ->
             {ok, Req, State};
         BoardId -> 
             find_board_controller_service(Req, State#websocket_handler_state{
-                boardId = BoardId,
-                nextEventId = 1
+                boardId = BoardId
             })
     end.
 
@@ -51,6 +51,9 @@ websocket_handle(_Frame = {binary, _Data}, State) ->
 websocket_handle(_Frame, State) ->
     {[{active, true}], State}.
 
+websocket_info({broadcast, Event}, State) ->
+    Json = websocket_event_parser:event_to_json(Event),
+    {[{text, Json}], State};
 websocket_info(_ErlangMsg, State) ->
     {[{active, true}], State}.
 
@@ -73,6 +76,6 @@ terminate(normal, _PartialReq, _State) -> ok.
 inform_board_controller_service_of_ws_termination(State, Reason) ->
     board_controller_service:end_session(
         State#websocket_handler_state.boardControllerPid, 
-        State#websocket_handler_state.sessionToken,
+        State#websocket_handler_state.sessionRef,
         Reason),
     ok.

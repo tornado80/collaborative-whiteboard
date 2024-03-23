@@ -12,8 +12,8 @@
 }).
 
 -record(websocket_handler_state, {
+    sessionRef :: reference(),
     sessionToken :: binary(),
     boardId :: binary(),
-    boardControllerPid :: pid(),
-    nextEventId :: integer()
+    boardControllerPid :: pid()
 }).

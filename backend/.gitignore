@@ -18,4 +18,4 @@ logs
 *.iml
 rebar3.crashdump
 *~
-boards_table
+*_table
