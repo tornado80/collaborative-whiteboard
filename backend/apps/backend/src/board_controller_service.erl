@@ -350,8 +350,8 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 [{ObjectId, ObjectType, {reserved, SessionRef}, Object}] ->
                                     case X of
                                         delete ->
-                                            true = ets:delete(State#state.board_objects_table, ObjectId),
-                                            delete_object_from_database(State#state.supervisor_pid, ObjectId),
+                                            delete_object_from_ets_and_database(State#state.supervisor_pid,
+                                                State#state.board_objects_table, ObjectId),
                                             broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
                                                 Session, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
@@ -372,28 +372,28 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                             NewObject = case UpdatePayload#update_payload.operation of
                                                 updateStickyNote ->
                                                     Object#stickyNote{
-                                                        zIndex = proplists:get_value(<<"zIndex">>, PropList),
-                                                        position = proplists:get_value(<<"position">>, PropList),
-                                                        color = proplists:get_value(<<"color">>, PropList),
-                                                        text = proplists:get_value(<<"text">>, PropList)
+                                                        zIndex = proplists:get_value(<<"zIndex">>, PropList, Object#stickyNote.zIndex),
+                                                        position = proplists:get_value(<<"position">>, PropList, Object#stickyNote.position),
+                                                        color = proplists:get_value(<<"color">>, PropList, Object#stickyNote.color),
+                                                        text = proplists:get_value(<<"text">>, PropList, Object#stickyNote.text)
                                                     };
                                                 updateComment ->
                                                     Object#comment{
-                                                        text = proplists:get_value(<<"text">>, PropList),
-                                                        timestamp = proplists:get_value(<<"timestamp">>, PropList),
-                                                        imageId = proplists:get_value(<<"imageId">>, PropList)
+                                                        text = proplists:get_value(<<"text">>, PropList, Object#comment.text),
+                                                        timestamp = proplists:get_value(<<"timestamp">>, PropList, Object#comment.timestamp),
+                                                        imageId = proplists:get_value(<<"imageId">>, PropList, Object#comment.imageId)
                                                     };
                                                 updateImage ->
                                                     Object#image{
-                                                        zIndex = proplists:get_value(<<"zIndex">>, PropList),
-                                                        position = proplists:get_value(<<"position">>, PropList),
-                                                        width = proplists:get_value(<<"width">>, PropList),
-                                                        size = proplists:get_value(<<"size">>, PropList),
-                                                        blobId = proplists:get_value(<<"blobId">>, PropList)
+                                                        zIndex = proplists:get_value(<<"zIndex">>, PropList, Object#image.zIndex),
+                                                        position = proplists:get_value(<<"position">>, PropList, Object#image.position),
+                                                        width = proplists:get_value(<<"width">>, PropList, Object#image.width),
+                                                        size = proplists:get_value(<<"size">>, PropList, Object#image.size),
+                                                        blobId = proplists:get_value(<<"blobId">>, PropList, Object#image.blobId)
                                                     }
                                             end,
-                                            ets:insert(State#state.board_objects_table, {ObjectId, ObjectType,
-                                                {reserved, SessionRef}, NewObject}),
+                                            insert_object_into_ets_and_database(State#state.supervisor_pid,
+                                                State#state.board_objects_table, ObjectId, ObjectType, NewObject),
                                             broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
                                                 Session, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
@@ -444,9 +444,146 @@ handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
             end
     end,
     {noreply, State};
-handle_cast({undo, _SessionRef}, State) ->
-    {noreply, State};
-handle_cast({redo, _SessionRef}, State) ->
+handle_cast({undo, SessionRef}, State) ->
+    case ets:lookup(State#state.board_sessions_table, SessionRef) of
+        [] ->
+            {noreply, State};
+        [{SessionRef, Session}] ->
+            case Session#session.undoStack of
+                [] ->
+                    {noreply, State};
+                [Top | Rest] ->
+                    NewUpdateId = State#state.last_update_id + 1,
+                    NewState = State#state{last_update_id = NewUpdateId},
+                    NewValue = Top#update.newValue,
+                    case ets:lookup(State#state.board_objects_table, Top#update.objectId) of
+                       [] ->
+                           case Top#update.operationType of
+                               delete ->
+                                   UpdatePayload = to_payload(Top#update{operationType = create}, Top#update.oldValue), % we are undoing :)
+                                   broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId, Session, SessionRef,
+                                       State#state.board_sessions_table),
+                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                       undoStack = Rest,
+                                       redoStack = [Top | Session#session.redoStack]}}),
+                                   insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                       Top#update.objectId, Top#update.objectType, Top#update.oldValue),
+                                   {noreply, NewState};
+                               _ ->
+                                   % undo not allowed and the last update is ignored (current state does not match with
+                                   % the new value of top update)
+                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                                   {noreply, State}
+                           end;
+                       [{ObjectId, ObjectType, {reserved, SessionRef}, NewValue}] ->
+                           case Top#update.operationType of
+                               create ->
+                                    UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.newValue), % we are undoing :)
+                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
+                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
+                                    delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                        Top#update.objectId),
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                        undoStack = Rest,
+                                        redoStack = [Top | Session#session.redoStack]}}),
+                                    {noreply, NewState};
+                               update ->
+                                   UpdatePayload = to_payload(Top, Top#update.oldValue),
+                                   broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
+                                       NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
+                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                       undoStack = Rest,
+                                       redoStack = [Top | Session#session.redoStack]}}),
+                                   insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                       ObjectId, ObjectType, Top#update.oldValue),
+                                   {noreply, NewState};
+                               _ ->
+                                   % undo not allowed and the last update is ignored (current state does not match with
+                                   % the new value of top update)
+                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                                   {noreply, State}
+                           end;
+                       [{_ObjectId, _ObjectType, {reserved, SessionRef}, _}] ->
+                           % undo not allowed and the last update is ignored (current state does not match with
+                           % the new value of top update)
+                           ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                           {noreply, State};
+                       _ ->
+                           % object is currently reserved for some one else
+                           {noreply, State}
+                    end
+            end
+    end;
+handle_cast({redo, SessionRef}, State) ->
+    case ets:lookup(State#state.board_sessions_table, SessionRef) of
+        [] ->
+            {noreply, State};
+        [{SessionRef, Session}] ->
+            case Session#session.redoStack of
+                [] ->
+                    {noreply, State};
+                [Top | Rest] ->
+                    NewUpdateId = State#state.last_update_id + 1,
+                    NewState = State#state{last_update_id = NewUpdateId},
+                    OldValue = Top#update.oldValue,
+                    case ets:lookup(State#state.board_objects_table, Top#update.objectId) of
+                        [{ObjectId, ObjectType, {reserved, SessionRef}, OldValue}] ->
+                            case Top#update.operationType of
+                                delete ->
+                                    UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.oldValue), % we are redoing :)
+                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId, Session, SessionRef,
+                                        State#state.board_sessions_table),
+                                    delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                        Top#update.objectId),
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                        undoStack = [Top | Session#session.undoStack],
+                                        redoStack = Rest}}),
+                                    {noreply, NewState};
+                                update ->
+                                    UpdatePayload = to_payload(Top, Top#update.newValue),
+                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
+                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                        undoStack = [Top | Session#session.undoStack],
+                                        redoStack = Rest}}),
+                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                        ObjectId, ObjectType, Top#update.oldValue),
+                                    {noreply, NewState};
+                                _ ->
+                                    % undo not allowed and the last update is ignored (current state does not match with
+                                    % the new value of top update)
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
+                                    {noreply, State}
+                            end;
+                        [] ->
+                            case Top#update.operationType of
+                                create ->
+                                    UpdatePayload = to_payload(Top#update{operationType = create}, Top#update.newValue), % we are redoing :)
+                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
+                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
+                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                        Top#update.objectId, Top#update.objectType, Top#update.newValue),
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                                        undoStack = [Top | Session#session.undoStack],
+                                        redoStack = Rest}}),
+                                    {noreply, NewState};
+                                _ ->
+                                    % undo not allowed and the last update is ignored (current state does not match with
+                                    % the new value of top update)
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
+                                    {noreply, State}
+                            end;
+                        [{_ObjectId, _ObjectType, {reserved, SessionRef}, _}] ->
+                            % undo not allowed and the last update is ignored (current state does not match with
+                            % the new value of top update)
+                            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
+                            {noreply, State};
+                        _ ->
+                            % object is currently reserved for some one else
+                            {noreply, State}
+                    end
+            end
+    end,
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -494,6 +631,10 @@ do_apply_erasing_curves_to_canvas(_ObjectsTable) ->
 insert_object_into_ets_and_database(SupervisorPid, ObjectsTable, ObjectId, ObjectType, Object) ->
     true = ets:insert(ObjectsTable, {ObjectId, ObjectType, not_reserved, Object}),
     insert_object_into_database(SupervisorPid, ObjectId, ObjectType, Object).
+
+delete_object_from_ets_and_database(SupervisorPid, ObjectsTable, ObjectId) ->
+    ets:delete(ObjectsTable, ObjectId),
+    delete_object_from_database(SupervisorPid, ObjectId).
 
 broadcast_board_update_to_all_sessions_except_ref(
         UpdatePayload, UpdateId, ExceptSession, ExceptSessionRef, SessionsTable) ->
@@ -628,6 +769,46 @@ schedule_session_inactivity_timer(Session, SessionRef) ->
     Ref = timer:apply_after(60000, ?MODULE, end_session,
         [self(), SessionRef, {userLeftPermanently, inactive}]),
     Session#session{inactivityTimerRef = Ref}.
+
+to_payload(Update, UpdateValue) ->
+    #update_payload{
+        canvasObjectId = Update#update.objectId,
+        canvasObjectType = Update#update.objectType,
+        operationType = Update#update.operationType,
+        operation = #canvas_object_operation{
+            canvasObjectOperationType = case {Update#update.objectType, Update#update.operationType} of
+                {image, create} -> createImage;
+                {image, update} -> updateImage;
+                {image, delete} -> deleteImage;
+                {stickyNote, create} -> createStickyNote;
+                {stickyNote, update} -> updateStickyNote;
+                {stickyNote, delete} -> deleteStickyNote;
+                {comment, create} -> createComment;
+                {comment, update} -> updateComment;
+                {comment, delete} -> deleteComment
+            end,
+            canvasObjectOperationPayload = case Update#update.objectType of
+                image -> [
+                    {<<"zIndex">>, UpdateValue#image.zIndex},
+                    {<<"position">>, UpdateValue#image.position},
+                    {<<"width">>, UpdateValue#image.width},
+                    {<<"size">>, UpdateValue#image.size},
+                    {<<"blobId">>, UpdateValue#image.blobId}
+                ];
+                stickyNote -> [
+                    {<<"zIndex">>, UpdateValue#stickyNote.zIndex},
+                    {<<"position">>, UpdateValue#stickyNote.position},
+                    {<<"color">>, UpdateValue#stickyNote.color},
+                    {<<"text">>, UpdateValue#stickyNote.text}
+                ];
+                comment -> [
+                    {<<"text">>, UpdateValue#comment.text},
+                    {<<"timestamp">>, UpdateValue#comment.timestamp},
+                    {<<"imageId">>, UpdateValue#comment.imageId}
+                ]
+            end
+        }
+    }.
 
 -ifdef(EUNIT).
 
