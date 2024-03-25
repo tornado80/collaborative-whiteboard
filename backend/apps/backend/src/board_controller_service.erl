@@ -17,6 +17,7 @@
     undo/2,
     redo/2,
     end_session/3,
+    get_state/1,
     apply_erasing_curves_to_canvas/2
 ]).
 
@@ -32,7 +33,8 @@
     supervisor_pid :: pid(),
     reservations_table :: ets:tid(),
     curves_updater_timer_ref :: reference(),
-    inactivity_timer_ref :: reference()
+    inactivity_timer_ref :: reference(),
+    shutdown_scheduled :: boolean()
 }).
 
 %% API functions
@@ -135,8 +137,13 @@ undo(Pid, SessionRef) ->
 redo(Pid, SessionRef) ->
     gen_server:cast(Pid, {redo, SessionRef}).
 
+% Practicality
+
 start_link(BoardId, SupervisorPid) ->
     gen_server:start_link(?MODULE, {BoardId, SupervisorPid}, []).
+
+get_state(Pid) ->
+    gen_server:call(Pid, get_state).
 
 %% Callback functions
 init({BoardId, SupervisorPid}) ->
@@ -170,9 +177,12 @@ init({BoardId, SupervisorPid}) ->
         board_objects_table = ObjectsTable,
         reservations_table = ReservationsTable,
         curves_updater_timer_ref = CurvesUpdaterTimerRef,
-        inactivity_timer_ref = do_schedule_board_inactivity_timer()
+        inactivity_timer_ref = do_schedule_board_inactivity_timer(),
+        shutdown_scheduled = true
     }}.
 
+handle_call(get_state, _From, State) ->
+    {reply, State, State};
 handle_call(get_board_state, _From, State) ->
     Sessions = ets:tab2list(State#state.board_sessions_table),
     Objects = ets:tab2list(State#state.board_objects_table),
@@ -447,7 +457,7 @@ handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
     case ets:lookup(State#state.reservations_table, ReservationId) of
         [] -> ok;
         [{ReservationId, CanvasObjectId, TimerRef}] ->
-            timer:cancel(TimerRef),
+            {ok, cancel} = timer:cancel(TimerRef),
             true = ets:delete(State#state.reservations_table, ReservationId),
             case ets:lookup(State#state.board_objects_table, CanvasObjectId) of
                 [] -> ok;
@@ -621,9 +631,9 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
         _ -> ok
     end,
     {noreply, State};
-handle_info(shutdown, State) ->
+handle_info(shutdown, State = #state{shutdown_scheduled = true}) ->
     lager:info("Shutting down board controller service for board ~p at ~p", [State#state.board_id, self()]),
-    timer:cancel(State#state.curves_updater_timer_ref),
+    {ok, cancel} = timer:cancel(State#state.curves_updater_timer_ref),
     do_apply_erasing_curves_to_canvas(State#state.board_objects_table),
     ok = prepare_database_for_shutdown(State#state.supervisor_pid),
     spawn(fun() -> supervisor:terminate_child(backend_sup, State#state.board_id) end),
@@ -760,29 +770,35 @@ prepare_database_for_shutdown(SupervisorPid) ->
 cancel_board_inactivity_timer(State) ->
     case State#state.inactivity_timer_ref of
         undefined -> State;
-        InactivityTimerRef -> timer:cancel(InactivityTimerRef), State#state{inactivity_timer_ref = undefined}
+        InactivityTimerRef ->
+            {ok, cancel} = timer:cancel(InactivityTimerRef),
+            State#state{
+                inactivity_timer_ref = undefined,
+                shutdown_scheduled = false}
     end.
 
 schedule_board_inactivity_timer_if_needed(State) ->
     case State#state.user_count of
         1 ->
             InactivityTimerRef = do_schedule_board_inactivity_timer(),
-            State#state{inactivity_timer_ref = InactivityTimerRef};
+            State#state{inactivity_timer_ref = InactivityTimerRef, shutdown_scheduled = true};
         _ ->
             State
     end.
 
 do_schedule_board_inactivity_timer() ->
-    timer:send_after(60000, shutdown).
+    {ok, Ref} = timer:send_after(60000, shutdown),
+    Ref.
 
 cancel_session_inactivity_timer(Session) ->
     case Session#session.inactivityTimerRef of
         undefined -> Session;
-        InactivityTimerRef -> timer:cancel(InactivityTimerRef), Session#session{inactivityTimerRef = undefined}
+        InactivityTimerRef ->
+            {ok, cancel} = timer:cancel(InactivityTimerRef), Session#session{inactivityTimerRef = undefined}
     end.
 
 schedule_session_inactivity_timer(Session, SessionRef) ->
-    Ref = timer:apply_after(60000, ?MODULE, end_session,
+    {ok, Ref} = timer:apply_after(60000, ?MODULE, end_session,
         [self(), SessionRef, {userLeftPermanently, inactive}]),
     Session#session{inactivityTimerRef = Ref}.
 
