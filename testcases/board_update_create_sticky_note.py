@@ -2,25 +2,35 @@ import threading
 import websocket
 import json
 import time
+import uuid
+import requests
+import pytest
 
-WEBSOCKET_URL = "ws://localhost:8080/api/ws/boards/3a79cd00-e5be-40c5-b4"
+WEBSOCKET_URL = "ws://localhost:8080/api/ws/boards/"
+REST_URL = "http://localhost:8080/api/rest/boards"
 
-def test_whiteboard_creation():
-    ws = websocket.create_connection(WEBSOCKET_URL)
-    event = {
+response = requests.post(REST_URL)
+assert response.status_code == 201
+
+# Extract boardId from the response headers
+board_id = response.headers["Location"].split("/")[-1]
+
+def begin():
+
+    #begin
+    ws = websocket.create_connection(WEBSOCKET_URL + board_id)
+    payload = {
         "eventType": "begin",
-        "eventPayload": {
-            "sessionToken": "", #here
-            "sessionType": "" #here
-        }
+        "sessionToken": uuid.uuid1(), 
+        "sessionType": "new" 
     }
-    ws.send(json.dumps(event))
+    ws.send(json.dumps(payload))
     response = ws.recv()
-    assert response == '{"eventType": "welcomeUser"}'
+    assert '{"eventType": "welcomeUser"}' in response
     ws.close()
 
 def send_update(payload):
-    ws = websocket.create_connection(WEBSOCKET_URL)
+    ws = websocket.create_connection(WEBSOCKET_URL + board_id)
     start_time = time.time()  # Record the start time
     ws.send(json.dumps(payload))
     end_time = time.time()  # Record the end time after sending
@@ -31,16 +41,32 @@ def send_update(payload):
 
 def simulate_clients():
     # Client 1 sends boardUpdateProposedPayload
-    proposal_id = "" #here
+   
     update_payload = {
         "eventType": "boardUpdateProposed",
-        "proposalId": proposal_id,
-        "update": {  }  # Fill in with your update payload #here
+        "proposalId": uuid.uuid1(),
+        "update": { 
+            "canvasObjectId": uuid.uuid1(),
+            "canvasObjectType": 'stickyNote',
+            "operationType": 'create',
+            "operation": {
+                
+                "canvasObjectOperationType": 'createStickyNote',
+                "position": {
+                    "x": 100,
+                    "y": 30
+                },
+
+                "text": 'Hello world',
+                "color": '#00000000'
+
+            }
+         }  
     }
     send_time = send_update(update_payload)
     print("Time taken for Client 1 to send update:", send_time)
 
-    # Clients 2-10 receive boardUpdatedPayload or boardUpdateFailedPayload
+    # Clients 2-10 receive broadcast of boardUpdated
     receive_times = []
     for i in range(2, 11):
         receive_times.append(receive_update())
@@ -49,7 +75,7 @@ def simulate_clients():
     print("Average time taken for Clients 2-10 to receive update:", avg_receive_time)
 
 def receive_update():
-    ws = websocket.create_connection(WEBSOCKET_URL)
+    ws = websocket.create_connection(WEBSOCKET_URL + board_id)
     start_time = time.time()  # Record the start time
     response = ws.recv()
     end_time = time.time()  # Record the end time after receiving
@@ -58,6 +84,7 @@ def receive_update():
     return end_time - start_time  # Return the time taken for receiving
 
 if __name__ == "__main__":
+    begin()
     simulate_clients()
 
 
