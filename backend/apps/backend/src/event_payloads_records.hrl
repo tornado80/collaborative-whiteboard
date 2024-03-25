@@ -150,7 +150,9 @@
 }).
 
 -record(board_update_succeeded_payload, {
-    proposalId :: binary()
+    proposalId :: binary(),
+    updateId :: integer(),
+    update :: #update_payload{}
 }).
 
 -record(board_update_failed_payload, {

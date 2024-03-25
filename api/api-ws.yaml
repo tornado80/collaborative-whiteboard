@@ -481,6 +481,12 @@ components:
               type: string
               format: uuid
               description: Unique identifier of the update proposal
+            updateId:
+              type: integer
+              format: int64
+              description: Unique monotonically increasing identifier of the update
+            update:
+              $ref: '#/components/schemas/updatePayload'
     boardUpdatedPayload:
       allOf:
         - $ref: '#/components/schemas/event'

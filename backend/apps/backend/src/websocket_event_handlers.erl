@@ -108,7 +108,7 @@ handle_event(
             boardControllerPid = Pid,
             sessionRef = SessionRef}) ->
     case board_controller_service:update_board(Pid, Update, SessionRef) of
-        ok ->
+        {ok, UpdatedId, UpdatePayload} ->
             SuccessData = websocket_event_parser:event_to_json(
                 #event{
                     eventType = <<"boardUpdateSucceeded">>,

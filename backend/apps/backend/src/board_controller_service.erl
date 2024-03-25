@@ -119,7 +119,8 @@ end_session(Pid, SessionRef, Reason) ->
 reserve_canvas_object(Pid, CanvasObjectId, SessionRef) ->
     gen_server:call(Pid, {reserve_canvas_object, CanvasObjectId, SessionRef}).
 
--spec update_board(Pid :: pid(), Update :: #update_payload{}, SessionRef :: binary()) -> ok | {error, binary()}.
+-spec update_board(Pid :: pid(), Update0 :: #update_payload{}, SessionRef :: binary()) ->
+    {ok, UpdateId :: integer(), Update1 :: #update_payload{}} | {error, binary()}.
 update_board(Pid, Update, SessionRef) ->
     gen_server:call(Pid, {update_board, Update, SessionRef}).
 
@@ -279,9 +280,12 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                             },
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
                                 State#state.board_objects_table, ObjectId, drawingCurve, Object),
-                            broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
+                            NewUpdatePayload = UpdatePayload#update_payload{
+                                canvasObjectId = ObjectId
+                            },
+                            broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
                                 Session, SessionRef, State#state.board_sessions_table),
-                            {reply, ok, NewState};
+                            {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                         erase ->
                             ObjectId = utility:new_uuid(),
                             Object = #erasing_curve{
@@ -290,9 +294,12 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                             },
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
                                 State#state.board_objects_table, ObjectId, erasingCurve, Object),
-                            broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
+                            NewUpdatePayload = UpdatePayload#update_payload{
+                                canvasObjectId = ObjectId
+                            },
+                            broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
                                 Session, SessionRef, State#state.board_sessions_table),
-                            {reply, ok, NewState};
+                            {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                         _ ->
                             {reply, {error, <<"invalid operation type">>}, State}
                     end;
@@ -326,7 +333,10 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                             end,
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
                                 State#state.board_objects_table, ObjectId, ObjectType, Object),
-                            broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
+                            NewUpdatePayload = UpdatePayload#update_payload{
+                                canvasObjectId = ObjectId
+                            },
+                            broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
                                 Session, SessionRef, State#state.board_sessions_table),
                             Update = #update{
                                 id = NewUpdateId,
@@ -341,7 +351,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 redoStack = [] % clear redo stack
                             },
                             ets:insert(State#state.board_sessions_table, {SessionRef, NewSession}),
-                            {reply, ok, NewState};
+                            {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                         X when X =:= update; X =:= delete ->
                             ObjectId = UpdatePayload#update_payload.canvasObjectId,
                             case ets:lookup(State#state.board_objects_table, ObjectId) of
@@ -352,7 +362,10 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                         delete ->
                                             delete_object_from_ets_and_database(State#state.supervisor_pid,
                                                 State#state.board_objects_table, ObjectId),
-                                            broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
+                                            NewUpdatePayload = UpdatePayload#update_payload{
+                                                canvasObjectId = ObjectId
+                                            },
+                                            broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
                                                 Session, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
                                                 id = NewUpdateId,
@@ -367,7 +380,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                                 redoStack = [] % clear redo stack
                                             },
                                             ets:insert(State#state.board_sessions_table, {SessionRef, NewSession}),
-                                            {reply, ok, NewState};
+                                            {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                                         update ->
                                             NewObject = case UpdatePayload#update_payload.operation of
                                                 updateStickyNote ->
@@ -394,7 +407,10 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                             end,
                                             insert_object_into_ets_and_database(State#state.supervisor_pid,
                                                 State#state.board_objects_table, ObjectId, ObjectType, NewObject),
-                                            broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId,
+                                            NewUpdatePayload = UpdatePayload#update_payload{
+                                                canvasObjectId = ObjectId
+                                            },
+                                            broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
                                                 Session, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
                                                 id = NewUpdateId,
@@ -409,7 +425,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                                 redoStack = [] % clear redo stack
                                             },
                                             ets:insert(State#state.board_sessions_table, {SessionRef, NewSession}),
-                                            {reply, ok, NewState}
+                                            {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState}
                                     end;
                                 _ ->
                                     {reply, {error, <<"object is not reserved by the session">>}, State}
@@ -605,7 +621,7 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
         _ -> ok
     end,
     {noreply, State};
-handle_info({shutdown, _}, State) ->
+handle_info(shutdown, State) ->
     lager:info("Shutting down board controller service for board ~p at ~p", [State#state.board_id, self()]),
     timer:cancel(State#state.curves_updater_timer_ref),
     do_apply_erasing_curves_to_canvas(State#state.board_objects_table),
@@ -757,7 +773,7 @@ schedule_board_inactivity_timer_if_needed(State) ->
     end.
 
 do_schedule_board_inactivity_timer() ->
-    timer:send_after(60000, {shutdown, self()}).
+    timer:send_after(60000, shutdown).
 
 cancel_session_inactivity_timer(Session) ->
     case Session#session.inactivityTimerRef of
