@@ -8,6 +8,7 @@
     create_board/0, 
     try_get_board_controller_service/1,
     try_get_board_cache_service/1,
+    try_get_board_service/2,
     request_to_be_registered_and_monitored/3
 ]).
 
@@ -24,16 +25,19 @@ start_link() ->
 create_board() ->
     gen_server:call(?SERVER, create_board).
 
--spec try_get_board_controller_service(binary()) -> {ok, pid()} | notfound.
+-spec try_get_board_controller_service(binary()) -> {ok, pid()} | notfound | service_not_available.
 try_get_board_controller_service(_BoardId) ->
     gen_server:call(?SERVER, {try_get_board_controller_service, _BoardId}).
 
--spec try_get_board_cache_service(binary()) -> {ok, pid()} | notfound.
+-spec try_get_board_cache_service(binary()) -> {ok, pid()} | notfound | service_not_available.
 try_get_board_cache_service(_BoardId) ->
     gen_server:call(?SERVER, {try_get_board_cache_service, _BoardId}).
 
 request_to_be_registered_and_monitored(BoardId, Service, Pid) ->
     gen_server:cast(?SERVER, {register_and_monitor, BoardId, Service, Pid}).
+
+try_get_board_service(Service, BoardId) ->
+    gen_server:call(?SERVER, {try_get_board_service, Service, BoardId}).
 
 %% Callback functions
 init([]) ->
@@ -49,6 +53,8 @@ handle_call(create_board, _From, State) ->
     create_new_board_supervisor(BoardId),
     ok = dets:insert(boards_table, {BoardId}),
     {reply, {ok, BoardId}, State};
+handle_call({try_get_board_service, Service, BoardId}, _From, State) ->
+    try_get_board_service(Service, BoardId, State);
 handle_call({try_get_board_controller_service, BoardId}, _From, State) ->
     try_get_board_service(board_controller_service, BoardId, State);
 handle_call({try_get_board_cache_service, BoardId}, _From, State) ->
@@ -80,23 +86,27 @@ handle_cast({register_and_monitor, BoardId, Service, Pid}, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info({'DOWN', Ref, process, Pid, _Reason}, State) ->
+handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
+    lager:info("boards_manager_service:handle_info: ~p ~p ~p ~p", [Ref, process, Pid, Reason]),
     case ets:lookup(boards_monitors, Ref) of
         [] ->
             ok;
+        [{Ref, board_sup, BoardId}] when Reason == shutdown ->
+            true = ets:delete(boards_monitors, Ref),
+            ets:insert(boards_table, {BoardId});
         [{Ref, Service, BoardId}] ->
             true = ets:delete(boards_monitors, Ref),
             case ets:lookup(boards_table, BoardId) of
-                [] ->
-                    unexpected;
-                [{BoardId}] ->
-                    unexpected;
+                [] -> % board was deleted
+                    ok;
+                [{BoardId}] -> % board was shut down due to inactivity
+                    ok;
                 [{BoardId, Map}] ->
                     case maps:get(Service, Map, undefined) of
+                        undefined -> ok;
                         {Pid, Ref} ->
                             ets:insert(boards_table, {BoardId, maps:remove(Service, Map)});
-                        undefined -> ok;
-                        {_NewPid, _Ref} -> ok
+                        _ -> ok
                     end
             end
     end,
@@ -117,14 +127,17 @@ try_get_board_service(Service, BoardId, State) ->
     case ets:lookup(boards_table, BoardId) of
         [] ->
             {reply, notfound, State};
-        [{BoardId}] -> % database like entry that has not been overwritten with Pid values so no board supervisor exists
+        [{BoardId}] ->
+            % database like entry that has not been overwritten with Pid values so no board supervisor exists
+            % this is also the case when board supervisor has terminated with normal reason
             {BoardId, Map} = create_new_board_supervisor(BoardId),
             {Pid, _MonitorRef} = maps:get(Service, Map),
             {reply, {ok, Pid}, State};
         [{BoardId, Map}] ->
+            % board supervisor exists but service might not be available
             case maps:get(Service, Map, undefined) of
                 undefined ->
-                    {reply, notfound, State};
+                    {reply, service_not_available, State};
                 {Pid, _MonitorRef} ->
                     {reply, {ok, Pid}, State}
             end
@@ -134,7 +147,7 @@ create_new_board_supervisor(BoardId) ->
     {ok, Supervisor} = supervisor:start_child(backend_sup, #{
         id => BoardId,
         start => {board_sup, start_link, [BoardId]},
-        restart => permanent,
+        restart => transient,
         shutdown => 5000}
     ),
     true = ets:insert(boards_table, Entry = {BoardId, supervisor_and_children_monitors_and_pids(BoardId, Supervisor)}),

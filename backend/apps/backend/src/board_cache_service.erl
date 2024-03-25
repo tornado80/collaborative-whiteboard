@@ -30,7 +30,7 @@ init({BoardId, SupervisorPid}) ->
     process_flag(trap_exit, true),
     boards_manager_service:request_to_be_registered_and_monitored(BoardId, ?MODULE, self()),
     BlobsTable = ets:new(board_blobs_table, [set]),
-    spawn(fun() -> gen_server:cast(self(), load_blobs_from_database) end),
+    gen_server:cast(self(), load_blobs_from_database),
     lager:info("Started board cache service for board ~p at ~p", [BoardId, self()]),
     {ok, #state{
         boardId = BoardId,

@@ -7,7 +7,7 @@
 
 %% API functions
 -export([get_objects_table/1, get_blobs_table/1, insert_blob/3,
-    insert_object/4, delete_object/2, prepare_for_shutdown/1]).
+    insert_object/4, delete_object/2]).
 
 %% State record
 -record(state, {
@@ -35,9 +35,6 @@ insert_object(Pid, ObjectId, ObjectType, Object) ->
 delete_object(Pid, ObjectId) ->
     gen_server:cast(Pid, {delete_object, ObjectId}).
 
-prepare_for_shutdown(Pid) ->
-    gen_server:call(Pid, prepare_for_shutdown).
-
 %% Callback functions
 init({BoardId, _SupervisorPid}) ->
     process_flag(trap_exit, true),
@@ -57,20 +54,6 @@ handle_call(get_objects_table, _From, State) ->
 handle_call(get_blobs_table, _From, State) ->
     BlobsTable = dets_to_list(State#state.board_blobs_table),
     {reply, BlobsTable, State};
-handle_call(prepare_for_shutdown, _From, State) ->
-    % get list of blobs sued in objects
-    Blobs = dets:foldl(fun({_, image, _, #image{blobId = BlobId}}, Acc) -> [BlobId | Acc]; (_, Acc) -> Acc end,
-        [], State#state.board_objects_table),
-    % delete blobs not in the list
-    dets:foldl(
-        fun({BlobId, _}, _) ->
-            case lists:member(BlobId, Blobs) of
-                true -> ok;
-                false -> dets:delete(State#state.board_blobs_table, BlobId)
-            end
-        end,
-        Blobs, State#state.board_blobs_table),
-    {reply, ok, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -90,7 +73,20 @@ handle_cast(_Msg, State) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
+terminate(shutdown, State) -> % shutdown by supervisor
+    % get list of blobs used in objects
+    Blobs = dets:foldl(fun({_, image, _, #image{blobId = BlobId}}, Acc) -> [BlobId | Acc]; (_, Acc) -> Acc end,
+        [], State#state.board_objects_table),
+    % delete blobs not in the list
+    dets:foldl(
+        fun({BlobId, _}, _) ->
+            case lists:member(BlobId, Blobs) of
+                true -> ok;
+                false -> dets:delete(State#state.board_blobs_table, BlobId)
+            end
+        end,
+        Blobs, State#state.board_blobs_table),
+    % close tables
     dets:close(State#state.board_objects_table),
     dets:close(State#state.board_blobs_table),
     ok.

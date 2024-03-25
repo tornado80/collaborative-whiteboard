@@ -160,7 +160,7 @@ init({BoardId, SupervisorPid}) ->
     % We should schedule load_from_database to be executed as the first message
     % We can not call directly because it will cause a deadlock as load_from_database will call
     % get_board_service_pid of the supervisor which is waiting for init to return
-    spawn(fun() -> gen_server:cast(self(), load_objects_from_database) end),
+    gen_server:cast(self(), load_objects_from_database),
     % this will remove erasing curves and split drawing curves into smaller curves according to erasing paths
     % then it will push the result to the controller (to update objects_table) and database
     % update_curves will be called every 10 seconds in another process and only has read-access to objects_table
@@ -635,9 +635,7 @@ handle_info(shutdown, State = #state{shutdown_scheduled = true}) ->
     lager:info("Shutting down board controller service for board ~p at ~p", [State#state.board_id, self()]),
     {ok, cancel} = timer:cancel(State#state.curves_updater_timer_ref),
     do_apply_erasing_curves_to_canvas(State#state.board_objects_table),
-    ok = prepare_database_for_shutdown(State#state.supervisor_pid),
-    spawn(fun() -> supervisor:terminate_child(backend_sup, State#state.board_id) end),
-    {noreply, State};
+    {stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -762,10 +760,6 @@ insert_object_into_database(SupervisorPid, ObjectId, ObjectType, Object) ->
 delete_object_from_database(SupervisorPid, ObjectId) ->
     DatabaseServicePid = board_sup:get_board_service_pid(SupervisorPid, board_database_service),
     board_database_service:delete_object(DatabaseServicePid, ObjectId).
-
-prepare_database_for_shutdown(SupervisorPid) ->
-    DatabaseServicePid = board_sup:get_board_service_pid(SupervisorPid, board_database_service),
-    board_database_service:prepare_for_shutdown(DatabaseServicePid).
 
 cancel_board_inactivity_timer(State) ->
     case State#state.inactivity_timer_ref of

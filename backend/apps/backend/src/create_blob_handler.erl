@@ -51,6 +51,10 @@ is_request_malformed('is board id valid uuid?', Req, State = #get_board_handler_
 resource_exists(Req, State = #get_board_handler_state{boardId = BoardId}) ->
     case boards_manager_service:try_get_board_cache_service(BoardId) of
         notfound -> {false, Req, State};
+        service_not_available ->
+            Req1 = cowboy_req:reply(503, #{<<"retry-after">> => 10},
+                <<"Board cache service is not available now. Retry in a few seconds.">>, Req),
+            {stop, Req1, State};
         {ok, Pid} -> {true, Req, State#blob_handler_state{boardCacheServicePid = Pid}}
     end.
 
