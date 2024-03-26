@@ -26,12 +26,12 @@ create_board() ->
     gen_server:call(?SERVER, create_board).
 
 -spec try_get_board_controller_service(binary()) -> {ok, pid()} | notfound | service_not_available.
-try_get_board_controller_service(_BoardId) ->
-    gen_server:call(?SERVER, {try_get_board_controller_service, _BoardId}).
+try_get_board_controller_service(BoardId) ->
+    gen_server:call(?SERVER, {try_get_board_controller_service, BoardId}).
 
 -spec try_get_board_cache_service(binary()) -> {ok, pid()} | notfound | service_not_available.
-try_get_board_cache_service(_BoardId) ->
-    gen_server:call(?SERVER, {try_get_board_cache_service, _BoardId}).
+try_get_board_cache_service(BoardId) ->
+    gen_server:call(?SERVER, {try_get_board_cache_service, BoardId}).
 
 request_to_be_registered_and_monitored(BoardId, Service, Pid) ->
     gen_server:cast(?SERVER, {register_and_monitor, BoardId, Service, Pid}).

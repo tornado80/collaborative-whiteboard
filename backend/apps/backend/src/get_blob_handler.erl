@@ -58,9 +58,19 @@ is_request_malformed('is blob id valid uuid?', Req, State = #blob_handler_state{
 %     end.
 
 resource_exists(Req, State = #blob_handler_state{boardId = BoardId, blobId = BlobId}) ->
-    case boards_manager_service:try_get_blob(BoardId, BlobId) of
+    case boards_manager_service:try_get_board_cache_service(BoardId) of
         notfound -> {false, Req, State};
-        {ok, Blob} -> {true, Req, State#blob_handler_state{blob = Blob}}
+        service_not_available ->
+            Req1 = cowboy_req:reply(503, #{<<"retry-after">> => 10},
+                <<"Board cache service is not available now. Retry in a few seconds.">>, Req),
+            {stop, Req1, State};
+        {ok, Pid} ->
+            case board_cache_service:try_get_blob(Pid, BlobId) of
+                notfound ->
+                    {false, Req, State};
+                {ok, Blob} ->
+                    {true, Req, State#blob_handler_state{blob = Blob}}
+            end
     end.
 
 handle_get_blob(Req, State) ->
