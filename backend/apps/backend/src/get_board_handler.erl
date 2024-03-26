@@ -19,7 +19,7 @@ allowed_methods(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-        {{<<"application">>, <<"json">>, [{<<"charset">>, <<"utf-8">>, '*'}]}, handle_get_board}
+        {{<<"application">>, <<"json">>, '*'}, handle_get_board}
     ], Req, State}.
 
 malformed_request(Req, State) ->

@@ -12,7 +12,7 @@ allowed_methods(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-        {{<<"image">>, <<"png">>, []}, handle_get_blob}
+        {{<<"image">>, <<"png">>, '*'}, handle_get_blob}
     ], Req, State}.
 
 % malformed_request(Req, State) ->

@@ -15,7 +15,7 @@ content_types_accepted(Req, State) ->
 
 content_types_provided(Req, State) ->
     {[
-        {{<<"application">>, <<"json">>, [{<<"charset">>, <<"utf-8">>,'*'}]}, undefined}
+        {{<<"application">>, <<"json">>, '*'}, undefined}
     ], Req, State}.
 
 handle_create_board(Req0, State) ->
