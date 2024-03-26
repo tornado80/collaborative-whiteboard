@@ -20,14 +20,14 @@ all() ->
     [scenario1].
 
 init_per_testcase(scenario1, Config) ->
-    %application:ensure_all_started(backend),
+    application:ensure_all_started(backend),
     application:ensure_all_started(gun),
     Host = "localhost",
     Port = 8080,
     [{host, Host}, {port, Port} | Config].
 
 end_per_testcase(scenario1, Config) ->
-    %application:stop(backend),
+    application:stop(backend),
     application:stop(gun),
     Config.
 
@@ -47,7 +47,7 @@ open_ws_connection_with_server(Config, State = #user_state{board_id = BoardId}) 
 
 post_request_to_create_board(Config) ->
     Pid = open_connection_with_server(Config),
-    StreamRef = gun:post(Pid, "/api/rest/boards", [{<<"content-type">>, <<"application/json">>}]),
+    StreamRef = gun:post(Pid, "/api/rest/boards", []),
     {response, nofin, 201, _Headers} = gun:await(Pid, StreamRef),
     {ok, Body} = gun:await_body(Pid, StreamRef),
     BoardId = proplists:get_value(<<"boardId">>, jsone:decode(Body, [{object_format, proplist}])),
@@ -147,14 +147,14 @@ expect_welcome_user(TestUserName) ->
         {welcome_user, TestUserName, State} -> State
     end.
 
-expect_user_joined(TestUserName, UserId) ->
+expect_user_joined(TestUserName, JoinedUserId) ->
     receive
-        {user_joined, TestUserName, UserId} -> ok
+        {user_joined, TestUserName, JoinedUserId} -> ok
     end.
 
-expect_user_left(TestUserName, UserId) ->
+expect_user_left(TestUserName, LeftUserId) ->
     receive
-        {user_left, TestUserName, UserId} -> ok
+        {user_left, TestUserName, LeftUserId} -> ok
     end.
 
 scenario1(Config) ->
