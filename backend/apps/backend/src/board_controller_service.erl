@@ -272,6 +272,7 @@ handle_call({reserve_canvas_object, CanvasObjectId, SessionRef}, _From, State) -
     end,
     {reply, ok, State};
 handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
+    lager:info("Update board: ~p", [UpdatePayload]),
     case ets:lookup(State#state.board_sessions_table, SessionRef) of
         [] ->
             {reply, {error, <<"session not found">>}, State};
@@ -318,21 +319,21 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                         create ->
                             ObjectId = utility:new_uuid(),
                             ObjectType = UpdatePayload#update_payload.canvasObjectType,
-                            Object = case UpdatePayload#update_payload.operation of
-                                createStickyNote ->
+                            Object = case ObjectType of
+                                stickyNote ->
                                     #stickyNote{
                                         zIndex = proplists:get_value(<<"zIndex">>, PropList),
                                         position = proplists:get_value(<<"position">>, PropList),
                                         color = proplists:get_value(<<"color">>, PropList),
                                         text = proplists:get_value(<<"text">>, PropList)
                                     };
-                                createComment ->
+                                comment ->
                                     #comment{
                                         text = proplists:get_value(<<"text">>, PropList),
                                         timestamp = proplists:get_value(<<"timestamp">>, PropList),
                                         imageId = proplists:get_value(<<"imageId">>, PropList)
                                     };
-                                createImage ->
+                                image ->
                                     #image{
                                         zIndex = proplists:get_value(<<"zIndex">>, PropList),
                                         position = proplists:get_value(<<"position">>, PropList),
@@ -392,21 +393,21 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                             ets:insert(State#state.board_sessions_table, {SessionRef, NewSession}),
                                             {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                                         update ->
-                                            NewObject = case UpdatePayload#update_payload.operation of
-                                                updateStickyNote ->
+                                            NewObject = case ObjectType of
+                                                stickyNote ->
                                                     Object#stickyNote{
                                                         zIndex = proplists:get_value(<<"zIndex">>, PropList, Object#stickyNote.zIndex),
                                                         position = proplists:get_value(<<"position">>, PropList, Object#stickyNote.position),
                                                         color = proplists:get_value(<<"color">>, PropList, Object#stickyNote.color),
                                                         text = proplists:get_value(<<"text">>, PropList, Object#stickyNote.text)
                                                     };
-                                                updateComment ->
+                                                comment ->
                                                     Object#comment{
                                                         text = proplists:get_value(<<"text">>, PropList, Object#comment.text),
                                                         timestamp = proplists:get_value(<<"timestamp">>, PropList, Object#comment.timestamp),
                                                         imageId = proplists:get_value(<<"imageId">>, PropList, Object#comment.imageId)
                                                     };
-                                                updateImage ->
+                                                image ->
                                                     Object#image{
                                                         zIndex = proplists:get_value(<<"zIndex">>, PropList, Object#image.zIndex),
                                                         position = proplists:get_value(<<"position">>, PropList, Object#image.position),
@@ -444,8 +445,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                             {reply, {error, <<"invalid operation type">>}, State}
                     end
             end
-    end,
-    {reply, ok, State};
+    end;
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.

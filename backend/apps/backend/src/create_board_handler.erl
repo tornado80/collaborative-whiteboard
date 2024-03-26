@@ -10,7 +10,7 @@ allowed_methods(Req, State) ->
 
 content_types_accepted(Req, State) ->
     {[
-        {{<<"application">>, <<"json">>, []}, handle_create_board}
+        {'*', handle_create_board}
     ], Req, State}.
 
 content_types_provided(Req, State) ->

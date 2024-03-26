@@ -86,7 +86,7 @@ proplist_to_update_payload(PropList) ->
             <<"canvas">> -> canvas;
             _ -> undefined
         end,
-        operationType = case proplists:get_value(<<"operation">>, PropList, undefined) of
+        operationType = case proplists:get_value(<<"operationType">>, PropList, undefined) of
             undefined -> undefined;
             <<"create">> -> create;
             <<"update">> -> update;
