@@ -93,7 +93,7 @@ handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
         [] ->
             ok;
         [{Ref, board_sup, BoardId}] when Reason == shutdown ->
-            ok = supervisor:delete_child(backend_sup, BoardId),
+            spawn(fun() -> ok = supervisor:delete_child(backend_sup, BoardId) end),
             true = ets:delete(boards_monitors, Ref),
             true = ets:insert(boards_table, {BoardId});
         [{Ref, Service, BoardId}] ->
@@ -117,6 +117,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 terminate(_Reason, _State) ->
+    lager:info("Shutting down boards_manager_service"),
     dets:close(boards_table),
     ok.
 

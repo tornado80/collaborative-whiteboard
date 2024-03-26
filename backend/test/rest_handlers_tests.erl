@@ -16,7 +16,7 @@ create_board_handler_test() ->
 
     % Act
     {ok, Pid} = gun:open("localhost", 8080),
-    StreamRef = gun:post(Pid, "/api/rest/boards", [{<<"content-type">>, <<"application/json">>}]),
+    StreamRef = gun:post(Pid, "/api/rest/boards", []),
     Response = gun:await(Pid, StreamRef),
 
     % Assert
