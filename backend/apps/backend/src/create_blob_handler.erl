@@ -50,7 +50,7 @@ is_request_malformed('is board id valid uuid?', Req, State = #blob_handler_state
 %         {ok, BoardCacheServicePid} -> {true, Req, State#blob_handler_state{boardCacheServicePid = BoardCacheServicePid}}
 %     end.
 
-resource_exists(Req, State = #board_handler_state{boardId = BoardId}) ->
+resource_exists(Req, State = #blob_handler_state{boardId = BoardId}) ->
     case boards_manager_service:try_get_board_cache_service(BoardId) of
         notfound -> {false, Req, State};
         service_not_available ->
