@@ -61,11 +61,11 @@ resource_exists(Req, State = #blob_handler_state{boardId = BoardId}) ->
     end.
 
 handle_create_blob(Req0, State) ->
-    {ok, Body} = read_body(Req0, <<>>),
+    {ok, Body, Req1} = read_body(Req0, <<>>),
     {ok, BlobId} = board_cache_service:create_blob(State#blob_handler_state.boardCacheServicePid, Body),
     Body = jsone:encode([{<<"blobId">>, BlobId}]),
-    Req1 = cowboy_req:set_resp_body(Body, Req0),
-    {{created, BlobId}, Req1, State}.
+    Req2 = cowboy_req:set_resp_body(Body, Req1),
+    {{created, BlobId}, Req2, State}.
 
 read_body(Req0, Acc) ->
     case cowboy_req:read_body(Req0) of
