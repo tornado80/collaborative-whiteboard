@@ -29,24 +29,24 @@ is_request_malformed('is board id provided?', Req, State) ->
     BoardId = cowboy_req:binding(boardId, Req),
     case BoardId of
         undefined -> {true, Req, State};
-        _ -> is_request_malformed('is board id valid uuid?', Req, State#get_board_handler_state{boardId = BoardId})
+        _ -> is_request_malformed('is board id valid uuid?', Req, State#board_handler_state{boardId = BoardId})
     end;
-is_request_malformed('is board id valid uuid?', Req, State = #get_board_handler_state{boardId = BoardId}) ->
+is_request_malformed('is board id valid uuid?', Req, State = #board_handler_state{boardId = BoardId}) ->
     case utility:is_valid_uuid(BoardId) of
         false -> {true, Req, State};
         true -> {false, Req, State}
     end.
 
-resource_exists(Req, State = #get_board_handler_state{boardId = BoardId}) ->
+resource_exists(Req, State = #board_handler_state{boardId = BoardId}) ->
     case boards_manager_service:try_get_board_controller_service(BoardId) of
         notfound -> {false, Req, State};
         service_not_available ->
             Req1 = cowboy_req:reply(503, #{<<"retry-after">> => 10},
                 <<"Board controller service is not available now. Retry in a few seconds.">>, Req),
             {stop, Req1, State};
-        {ok, Pid} -> {true, Req, State#get_board_handler_state{boardControllerPid = Pid}}
+        {ok, Pid} -> {true, Req, State#board_handler_state{boardControllerPid = Pid}}
     end.
 
 handle_get_board(Req, State) ->
-    BoardStateJson = board_controller_service:get_board_state(State#get_board_handler_state.boardControllerPid),
+    BoardStateJson = board_controller_service:get_board_state(State#board_handler_state.boardControllerPid),
     {BoardStateJson, Req, State}.

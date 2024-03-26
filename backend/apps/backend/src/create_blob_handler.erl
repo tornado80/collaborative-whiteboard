@@ -12,7 +12,9 @@ allowed_methods(Req, State) ->
 
 content_types_accepted(Req, State) ->
     {[
-        {{<<"image">>, <<"png">>, []}, handle_create_blob}
+        {{<<"image">>, <<"png">>, []}, handle_create_blob},
+        {{<<"image">>, <<"jpg">>, []}, handle_create_blob},
+        {{<<"image">>, <<"jpeg">>, []}, handle_create_blob}
     ], Req, State}.
 
 content_types_provided(Req, State) ->
@@ -34,9 +36,9 @@ is_request_malformed('is board id provided?', Req, State) ->
     BoardId = cowboy_req:binding(boardId, Req),
     case BoardId of
         undefined -> {true, Req, State};
-        _ -> is_request_malformed('is board id valid uuid?', Req, State#get_board_handler_state{boardId = BoardId})
+        _ -> is_request_malformed('is board id valid uuid?', Req, State#blob_handler_state{boardId = BoardId})
     end;
-is_request_malformed('is board id valid uuid?', Req, State = #get_board_handler_state{boardId = BoardId}) ->
+is_request_malformed('is board id valid uuid?', Req, State = #blob_handler_state{boardId = BoardId}) ->
     case utility:is_valid_uuid(BoardId) of
         false -> {true, Req, State};
         true -> {false, Req, State}

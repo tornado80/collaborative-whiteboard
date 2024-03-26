@@ -17,9 +17,9 @@ start(_StartType, _StartArgs) ->
             {"/new", redirect_handler, undefined},
             {"/api", backend_handler, undefined},
             {"/api/rest/boards", create_board_handler, undefined},
-            {"/api/rest/boards/:boardId", get_board_handler, #get_board_handler_state{}},
+            {"/api/rest/boards/:boardId", get_board_handler, #board_handler_state{}},
             {"/api/rest/boards/:boardId/blobs", create_blob_handler, #blob_handler_state{}},
-            {"/api/rest/boards/:boardId/blobs/:blobId", get_blob_handler, undefined},
+            {"/api/rest/boards/:boardId/blobs/:blobId", get_blob_handler, #blob_handler_state{}},
             {"/api/ws/boards/:boardId", websocket_handler, #websocket_handler_state{}}
         ]}
     ]),

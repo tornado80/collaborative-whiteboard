@@ -1,4 +1,4 @@
--record(get_board_handler_state, {
+-record(board_handler_state, {
     boardId :: binary(),
     sessionToken :: binary(),
     boardControllerPid :: pid()
