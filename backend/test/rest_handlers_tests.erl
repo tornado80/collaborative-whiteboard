@@ -11,8 +11,8 @@
 
 create_board_handler_test() ->
     % Arrange
-    application:ensure_all_started(backend),
-    application:ensure_all_started(gun),
+    {ok, _} = application:ensure_all_started(backend),
+    {ok, _} = application:ensure_all_started(gun),
 
     % Act
     {ok, Pid} = gun:open("localhost", 8080),
@@ -23,8 +23,7 @@ create_board_handler_test() ->
     ?assertMatch({response, nofin, 201, _Headers}, Response),
     {response, nofin, 201, Headers} = Response,
     LocationHeader = lists:keyfind(<<"location">>, 1, Headers),
-    ?assertMatch({<<"location">>, _BoardId}, LocationHeader),
-    {<<"location">>, BoardId} = LocationHeader,
+    {<<"location">>, <<"/boards/", BoardId/binary>>} = LocationHeader,
 
     % Act
     ResponseBody = gun:await_body(Pid, StreamRef),

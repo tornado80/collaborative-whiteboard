@@ -41,7 +41,8 @@ try_get_board_service(Service, BoardId) ->
 
 %% Callback functions
 init([]) ->
-    %process_flag(trap_exit, true),
+    process_flag(trap_exit, true),
+    %{ok, FileName} = application:get_env(backend, boards_table_db_name),
     {ok, boards_table} = dets:open_file(boards_table, [{type, set}, {file, "boards_table"}]),
     boards_table = ets:new(boards_table, [named_table, set]),
     boards_table = dets:to_ets(boards_table, boards_table),
@@ -92,8 +93,9 @@ handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
         [] ->
             ok;
         [{Ref, board_sup, BoardId}] when Reason == shutdown ->
+            ok = supervisor:delete_child(backend_sup, BoardId),
             true = ets:delete(boards_monitors, Ref),
-            ets:insert(boards_table, {BoardId});
+            true = ets:insert(boards_table, {BoardId});
         [{Ref, Service, BoardId}] ->
             true = ets:delete(boards_monitors, Ref),
             case ets:lookup(boards_table, BoardId) of

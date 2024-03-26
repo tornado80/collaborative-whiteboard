@@ -38,9 +38,11 @@ find_board_controller_service(Req, State) ->
     end.
 
 websocket_init(State) ->
+    lager:info("Now in websocket connection"),
     {ok, State}.
 
 websocket_handle(_Frame = {text, Json}, State) ->
+    lager:info("Received message: ~p", [Json]),
     case websocket_event_parser:json_to_event(Json) of
         {ok, Event} -> 
             websocket_event_handlers:handle_event(Event, State);
@@ -52,7 +54,8 @@ websocket_handle(_Frame = {binary, _Data}, State) ->
     Reason = <<"this endpoint does not accept binary stream">>,
     lager:error(Reason),
     {[{close, Reason}], State};
-websocket_handle(_Frame, State) ->
+websocket_handle(Frame, State) ->
+    lager:info("Received unknown frame: ~p", [Frame]),
     {[{active, true}], State}.
 
 websocket_info({broadcast, Event}, State) ->
@@ -82,6 +85,7 @@ terminate(normal, _PartialReq, _State) -> ok.
 % Internals
 
 inform_board_controller_service_of_ws_termination(State, Reason) ->
+    lager:info("Websocket handler ~p informs board controller of websocket termination reason: ~p", [self(), Reason]),
     case State#websocket_handler_state.boardControllerPid of
         undefined -> ok;
         BoardControllerPid ->

@@ -46,11 +46,11 @@ get_board_state(Pid) ->
         #{
             id => Board#board.id,
             lastUpdateId => Board#board.lastUpdateId,
-            activeUsers => [#{
+            onlineUsers => [#{
                 id => Session#session.userId,
                 name => Session#session.userName,
                 color => Session#session.color
-            } || {_Ref, Session} <- Board#board.sessions],
+            } || {_Ref, Session} <- Board#board.sessions, Session#session.status =:= online],
             canvasObjects => [
                 case ObjectType of
                     image -> #{
@@ -724,8 +724,10 @@ broadcast_event_to_all_sessions_except_ref(Event, ExceptSessionRef, SessionsTabl
         ok, SessionsTable).
 
 send_event_to_session_except_ref(_, X, _, X) -> skip;
-send_event_to_session_except_ref(Event, _Ref, Session, _ExceptSessionRef) ->
-    Session#session.wsPid ! {broadcast, Event}, ok.
+send_event_to_session_except_ref(Event, _Ref, Session = #session{status = online}, _ExceptSessionRef) ->
+    lager:info("Sending event ~p to session ~p", [Event, Session]),
+    Session#session.wsPid ! {broadcast, Event}, ok;
+send_event_to_session_except_ref(_, _, _, _) -> skip.
 
 create_new_session(BoardSessionsTable, BoardSessionTokensTable, WsPid) ->
     SessionToken = utility:new_uuid(),
