@@ -322,6 +322,10 @@ components:
             width:
               type: integer
               format: int64
+            blobId:
+              type: string
+              format: uuid
+              description: Unique identifier of the image blob
             size:
               $ref: '#/components/schemas/vec2'
               description: Image size which can also be inferred from the blob (immutable)

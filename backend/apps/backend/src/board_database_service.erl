@@ -39,8 +39,8 @@ delete_object(Pid, ObjectId) ->
 init({BoardId, _SupervisorPid}) ->
     process_flag(trap_exit, true),
     boards_manager_service:request_to_be_registered_and_monitored(BoardId, ?MODULE, self()),
-    {ok, BoardObjectsTable} = dets:open_file(binary_to_list(<<BoardId/binary, "_objects_table">>), [{type, set}]),
-    {ok, BoardBlobsTable} = dets:open_file(binary_to_list(<<BoardId/binary, "_blobs_table">>), [{type, set}]),
+    BoardObjectsTable = dets_open_file(binary_to_list(<<BoardId/binary, "_objects_table">>)),
+    BoardBlobsTable = dets_open_file(binary_to_list(<<BoardId/binary, "_blobs_table">>)),
     lager:info("Started database service for board ~p at ~p", [BoardId, self()]),
     {ok, #state{
         board_id = BoardId,
@@ -89,6 +89,8 @@ terminate(shutdown, State) -> % shutdown by supervisor
     % close tables
     dets:close(State#state.board_objects_table),
     dets:close(State#state.board_blobs_table),
+    ok;
+terminate(_Reason, _State) ->
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
@@ -96,3 +98,9 @@ code_change(_OldVsn, State, _Extra) ->
 
 dets_to_list(Table) ->
     dets:foldl(fun(Object, Acc) -> [Object | Acc] end, [], Table).
+
+dets_open_file(Name) ->
+    case dets:open_file(Name, [{type, set}]) of
+        {ok, Table} -> Table;
+        {error, Reason} -> lager:error("Failed to open table ~p: ~p", [Name, Reason]), exit(error)
+    end.

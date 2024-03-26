@@ -32,8 +32,9 @@ new_anonymous_animal_name() ->
         tiger, turtle, unicorn, walrus, wolf, wolverine, wombat],
     RandomIndex = rand:uniform(length(AnonymousAnimals)),
     lists:nth(RandomIndex, AnonymousAnimals).
-    
 
+vector2_to_map([{<<"x">>, x}, {<<"y">>, Y}]) ->
+    [{<<"x">>, x}, {<<"y">>, Y}];
 vector2_to_map(#vector2{x = X, y = Y}) ->
     #{
         x => X,
