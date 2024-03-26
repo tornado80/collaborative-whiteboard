@@ -1,5 +1,6 @@
 import axios from "axios"
-import { Reservation } from "./reservation";
+import { Reservation } from "./reservation"
+import { v4 as uuidv4 } from "uuid"
 
 function wsPathOnsameHost(path) {
     const loc = window.location
@@ -7,21 +8,30 @@ function wsPathOnsameHost(path) {
 }
 
 function extractBoardIdFromPath() {
-    const match = window.location.pathname.match(/\/boards\/(\d+)/)
-    if (match) {
-        return parseInt(match[1])
-    }
-    return null
+    const s = window.location.pathname.split("/")
+    return s[s.length - 1]
 }
 
 export class Session {
+    get _state() {
+        return this._state_obj()
+    }
+
     constructor(state, update) {
-        this._state = state
+        this._state_obj = state
         this._updateState = update
         this._boardId = extractBoardIdFromPath()
         this._eventId = 1
         this._ready = false
-        this._mutationEventBuf = []
+        this._eventBuf = []
+
+        this._updateState({
+            reservations: [],
+            objects: [],
+            users: [],
+            reserved: null, // object {objectId: xxx, reservedUntil: xxx}
+            user: {},
+        })
 
         // Open WebSocket Session, receive should handle here
         this._ws = new WebSocket(wsPathOnsameHost(`/api/ws/boards/${this._boardId}`))
@@ -29,74 +39,173 @@ export class Session {
         this._ws.onmessage = event => {
             const eventData = JSON.parse(event.data)
 
-            switch(eventData.eventType) {
-                // TODO: Process events based on event type discriminator field
-                case "welcomeUser":
-                    // TODO: Save session information (e.g. ID & token)
-                    this._fetchInitialState()
-                    break;
+            console.log("Got message: ", eventData)
+
+            // TODO Process message
+            if (this._ready) {
+                this._updateState(
+                    this._processEvent(this._state, eventData)
+                )
+            } else if (eventData.eventType === "welcomeUser") {
+                // Save session information (e.g. ID & token)
+                this._userId = eventData.userId
+                this._sessionToken = eventData.sessionToken
+                this._fetchInitialState()
+            } else {
+                this._eventBuf.push(eventData)
             }
         }
 
         this._ws.onopen = () => {
+            this.sendEvent({
+                eventType: "begin",
+                sessionType: "new"
+            })
         }
-        this._sessionId = 123
-        this._sessionToken = "asddfqwerty123"
     }
 
-    _processStateMutationEvent(updateEvent) {
-        // Ignore past updates
-        if (this._lastAppliedUpdate >= updateEvent.updateId) {
-            return
-        }
+    _processEvent(state, eventData) {
+        // TODO: Check incremental messge counter
 
-        switch(updateEvent.objectType) {
-            // TODO: Process events based on event type discriminator field
-            case "stickyNote":
-                this._updateObject(updateEvent.object.id, {
-                    id: updateEvent.object.id,
-                    pos: updateEvent.object.pos,
-                    // etc.
-                })
-                break;
+        // Process events based on event type discriminator field
+        switch(eventData.eventType) {
+            case "reservationCancelled":
+                return {
+                    ...state,
+                    reservations: this._state.reservations.filter(r => r.reservationId !== eventData.reservationId)
+                }
+
+            case "reservationExpired":
+                return {
+                    ...state,
+                    reservations: this._state.reservations.filter(r => r.reservationId !== eventData.reservationId)
+                }
+            
+            case "canvasObjectReserved":
+                return {
+                    ...state,
+                    reservations: [...this._state.reservations, eventData]
+                }
+
+            case "userJoined":
+                return {
+                    ...state,
+                    users: [...this._state.users, eventData]
+                }
+
+            case "userLeft":
+                return {
+                    ...state,
+                    users: this._state.users.filter(u => u.userId !== eventData.userId)
+                }
+
+            case "boardUpdateSucceeded":  // TODO: remove this (should be ignored)
+                return {
+                    ...state,
+                    objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData]
+                }
+
+            case "boardUpdated":
+                if (this._lastAppliedUpdate >= eventData.updateId) {
+                    return
+                }
+
+                this._lastAppliedUpdate = eventData.updateId
+
+                return {
+                    ...state,
+                    objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
+                }
+
+            case "reservationProposalSucceeded":
+                break
+
+            case "reservationProposalFailed":
+                alert("Failed to reserve object")
+                break
+
+            case "boardUpdateFailed":
+                alert("Failed to update object")
+                break
+                
+            default:
+                console.error("Unknown eventType ", eventData.eventType)
         }
+    }
+
+    sendEvent(payload) {
+        console.log("send message: ", payload)
+        if (this._ws.readyState === WebSocket.OPEN) {
+            this._ws.send(JSON.stringify(payload));
+          } else {
+            console.error('WebSocket connection is not open.');
+          }
+    }
+
+    proposeUpdate(update) {
+        this.sendEvent({
+            eventType: "boardUpdateProposed",
+            proposalId: uuidv4(),
+            intermediate: false,
+            update,
+        })
+    }
+
+    sendBlob(blob) { // Returns a promise of blobID
+        return new Promise((resolve, reject) => {
+            const req = new XMLHttpRequest();
+            req.open("POST", `/api/rest/boards/${this._boardId}/blobs`, true);
+
+            req.onreadystatechange = () => {
+                if (req.readyState == XMLHttpRequest.DONE) {
+                    const json = JSON.parse(req.responseText)
+                    console.log(json)
+                    resolve(json.blobId)
+                }
+            }
+
+            req.send(blob);
+        })
     }
 
     _fetchInitialState() {
         // Fetch Board State
+        console.log("board", `/api/rest/boards/${this._boardId}`)
         axios.get(`/api/rest/boards/${this._boardId}`, {
             headers: {
-                'X-Session-Token': this._sessionToken
+                'session-token': this._sessionToken
             }
         }).then((res) => {
+            console.log(res)
+
             // TODO: initialize local state with received objects
             const data = res.data
 
             // TODO: Initialize last applied update
             this._lastAppliedUpdate = data.lastAppliedUpdate
 
-            // TODO: Process cached updates
-            this._mutationEventBuf.forEach(this._processStateMutationEvent)
+            this._updateState(
+                this._eventBuf.reduce(
+                    (state, o) => this._processEvent(state, o),
+                    {
+                        ...this._state,
+                        user: data.onlineUsers.filter(u => u.id === this._userId)[0],
+                        objects: data.canvasObjects
+                    }
+                )
+            )
+            
+        })
+        .catch(err => {
+            console.error(err)
         })
     }
 
-    _updateObject(objectId, objectData) {
-        this._updateState(this._state.map(o => (o.id === objectId) ? objectData : o).sort((a, b) => a.z_index - b.z_index))
-    }
-
-    _insertObject(objectData) {
-        this._updateState([...this._state, objectData].sort((a, b) => a.z_index - b.z_index))
-    }
-
-    _removeObject(objectId) {
-        this._updateState(this._state.filter(o => o.id !== objectId))
-    }
-
     get sessionID() {
-        return this._sessionId
+        return this._userId
     }
 
     reserveObject(objectId) {
-        const r = new Reservation(this._sessionToken, objectId)
+        //const r = new Reservation(this._sessionToken, objectId)
     }
 }

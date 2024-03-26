@@ -3,7 +3,7 @@ import * as React from "react"
 import Modal from "react-modal"
 import ToolButton from "./ToolButton"
 import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault } from "@mdi/js"
-import html2canvas from 'html2canvas';
+import html2canvas from "html2canvas"
 import { Session } from './state/session';
 
 // Define constants
@@ -26,9 +26,26 @@ const Tool = {
   Comment: "comment",
 }
 
+function dataURItoBlob(uri) {
+  const bs = atob(uri.split(',')[1]);
+  var mime = uri.split(',')[0].split(':')[1].split(';')[0]
+  var ab = new ArrayBuffer(bs.length);
+
+  // create a view into the buffer
+  var ia = new Uint8Array(ab);
+
+  // set the bytes of the buffer to the correct values
+  for (var i = 0; i < bs.length; i++) {
+      ia[i] = bs.charCodeAt(i);
+  }
+  return new Blob([ab], {type: mime});
+
+}
+
 export default class App extends React.Component {
 
   state = {
+    state: {}, // Board state
     selectedTool: Tool.Default,
     // Most recent mouse state
     mouse: {
@@ -54,10 +71,12 @@ export default class App extends React.Component {
 
     this.canvasRef = React.createRef(null)
     this.canvasScrollRef = React.createRef(null)
-    
-    const [objectsState, objectsUpdate] = React.useState([])
-    const [sessionState, sessionUpdate] = React.useState(new Session(objectsState, objectsUpdate))
+  }
 
+  componentDidMount() {
+    if (!this.session) {
+      this.session = new Session(() => this.state.state, (state) => this.setState({...this.state, state}))
+    }
   }
 
   // Set current tool to another
@@ -71,15 +90,11 @@ export default class App extends React.Component {
   // Event handler for mouse click events on canvas
   onMouseClickOnCanvas(event) {
     const scroll = this.canvasScrollRef.current
-    this.setState({
-      ...this.state,
-      actionPos: {
-        x: event.clientX - event.target.offsetLeft + scroll.scrollLeft,
-        y: event.clientY - event.target.offsetTop + scroll.scrollTop,
-      }
-    })
 
-    this.clickOnCanvas()
+    this.clickOnCanvas({
+      x: event.clientX - event.target.offsetLeft + scroll.scrollLeft,
+      y: event.clientY - event.target.offsetTop + scroll.scrollTop,
+    })
   }
   
   // Event handler for mouse move events on canvas
@@ -258,27 +273,38 @@ export default class App extends React.Component {
   /* Higher level functions to control the application logic */
 
   // Triggers actions based on selected tool
-  clickOnCanvas() {
+  clickOnCanvas(pos) {
     // This method is called when user clicks and immediately releases the mouse on canvas
 
     if (this.state.selectedTool === Tool.Comment) {
       this.setState({
         ...this.state,
         commentModalOpen: true,
+        actionPos: pos,
       })
     } else if (this.state.selectedTool === Tool.Image) {
       this.setState({
         ...this.state,
         imageModalOpen: true,
+        actionPos: pos,
       })
     } else if (this.state.selectedTool === Tool.StickyNote) {
       this.setState({
         ...this.state,
         noteModalOpen: true,
+        actionPos: pos,
       })
     } else if (this.state.selectedTool === Tool.Erase) {
+      this.setState({
+        ...this.state,
+        actionPos: pos,
+      })
       this.erase()
     } else if (this.state.selectedTool === Tool.Draw) {
+      this.setState({
+        ...this.state,
+        actionPos: pos,
+      })
       this.drawCurve()
     }
   }
@@ -296,30 +322,20 @@ export default class App extends React.Component {
   /* Tool-specific methods */
 
   // Called when modal "form" is submitted and changes the board state.
-  addStickyNote() {
-    const payload = {
-      update: {
-
-            //this.state.actionPos.x
-            //this.state.actionPos.y
-            //this.state.stickyNoteText
-
-      },
-    };
-  
-    // Convert the payload to JSON
-    const payloadJSON = JSON.stringify(payload);
-  
-    // Send the payload through the WebSocket connection
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(payloadJSON);
-    } else {
-      console.error('WebSocket connection is not open.');
-    }
+  addStickyNote() {    
+    this.session.proposeUpdate({
+      canvasObjectType: "stickyNote",
+      operationType: "create",
+      operation: {
+        canvasObjectOperationType: "createStickyNote",
+        position: { x: this.state.actionPos.x, y: this.state.actionPos.y },
+        text: this.state.stickyNoteText,
+        color: "#ffd500"
+      }
+    })
   
     // Reset the action state after sending the payload
     this.resetActionState();
-
   }
 
   // Called when modal "form" is submitted and changes the board state.
@@ -331,29 +347,23 @@ export default class App extends React.Component {
     // Wait until action gets confirmed
     // Alert if proposal was not successful
 
+    // TODO: Upload blob & include it into update proposal
 
-    const payload = {
-      update: {
+    this.session.sendBlob(dataURItoBlob(this.state.imgToUpload)).then(blobId => {
+      this.session.proposeUpdate({
+        canvasObjectType: "image",
+        operationType: "create",
+        operation: {
+          canvasObjectOperationType: "createImage",
+          position: { x: this.state.actionPos.x, y: this.state.actionPos.y },
+          blobId: blobId,
+          width: 100,
+        }
+      })
 
-                //this.state.actionPos.x
-                //this.state.actionPos.y
-                //this.state.imgToUpload
-
-      },
-    };
-  
-    // Convert the payload to JSON
-    const payloadJSON = JSON.stringify(payload);
-  
-    // Send the payload through the WebSocket connection
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(payloadJSON);
-    } else {
-      console.error('WebSocket connection is not open.');
-    }
-  
-    // Reset the action state after sending the payload
-    this.resetActionState();
+      // Reset the action state after sending the payload
+      this.resetActionState();
+    })
   }
 
   // Called when modal "form" is submitted and changes the board state.
@@ -364,50 +374,45 @@ export default class App extends React.Component {
 
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    const payload = {
-      update: {
-
-      //this.state.actionPos.x
-    //this.state.actionPos.y
-    //this.state.commentText
-
-      },
-    };
-  
-    // Convert the payload to JSON
-    const payloadJSON = JSON.stringify(payload);
-  
-    // Send the payload through the WebSocket connection
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(payloadJSON);
-    } else {
-      console.error('WebSocket connection is not open.');
-    }
-  
+    this.session.proposeUpdate({
+      canvasObjectType: "comment",
+      operationType: "create",
+      operation: {
+        canvasObjectOperationType: "createComment",
+        text: this.state.commentText,
+        timestamp: new Date().toISOString(),
+      }
+    })
+    
     // Reset the action state after sending the payload
     this.resetActionState();
   }
 
+  removeObject(objectId) {
+    this.session.proposeUpdate({
+      //canvasObjectType: "stickyNote",
+      operationType: "draw",
+      operation: {
+        canvasObjectOperationType: "draw",
+        points: [...this.curveWaypoints],
+        color: "#000000", // black
+      }
+    })
+  }
+
   // Called when drag finished and changes the board state.
   drawCurve() {
-
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    const payload = {
-      update: {
-
-      },
-    };
-  
-    // Convert the payload to JSON
-    const payloadJSON = JSON.stringify(payload);
-  
-    // Send the payload through the WebSocket connection
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(payloadJSON);
-    } else {
-      console.error('WebSocket connection is not open.');
-    }
+    this.session.proposeUpdate({
+      canvasObjectType: "canvas",
+      operationType: "draw",
+      operation: {
+        canvasObjectOperationType: "draw",
+        points: [...this.curveWaypoints],
+        color: "#000000", // black
+      }
+    })
   
     // Reset the action state after sending the payload
     this.resetActionState();
@@ -415,24 +420,17 @@ export default class App extends React.Component {
 
   // Called when drag finished and changes the board state.
   erase() {
-
     // Wait until action gets confirmed
     // Alert if proposal was not successful
-    const payload = {
-      update: {
-
-      },
-    };
-  
-    // Convert the payload to JSON
-    const payloadJSON = JSON.stringify(payload);
-  
-    // Send the payload through the WebSocket connection
-    if (this.socket.readyState === WebSocket.OPEN) {
-      this.socket.send(payloadJSON);
-    } else {
-      console.error('WebSocket connection is not open.');
-    }
+    this.session.proposeUpdate({
+      canvasObjectType: "canvas",
+      operationType: "draw",
+      operation: {
+        canvasObjectOperationType: "erase",
+        radius: ERASER_SIZE / 2,
+        centers: [...this.curveWaypoints],
+      }
+    })
   
     // Reset the action state after sending the payload
     this.resetActionState();
@@ -474,6 +472,18 @@ export default class App extends React.Component {
     ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
 
     // Render curve paths from boardState
+    // TODO: Render from state
+    // for (const o of this.state.state.objects) {
+    //   if (o.operationType === "draw") {
+    //     ctx.beginPath()
+    //     ctx.arc(x, y, 5, 0, 2 * Math.PI, false)
+    //     ctx.fill()
+    //   } else if (o.operationType === "erase") {
+    //     ctx.beginPath()
+    //     ctx.clearRect(x, y, ERASER_SIZE, ERASER_SIZE)
+    //     ctx.fill()
+    //   }
+    // }
 
     // Render current waypoints if erase or draw tool selected
     if (this.state.selectedTool === Tool.Draw) {
@@ -491,16 +501,16 @@ export default class App extends React.Component {
     }
   }
 
-  // ex
-    exportAsPNG = () => {
-      const element = document.getElementById('canvas'); 
-      html2canvas(element).then(canvas => {
-        const link = document.createElement('a');
-        link.download = 'whiteboard.png';
-        link.href = canvas.toDataURL();
-        link.click();
-      });
-    };
+  // export board
+  exportAsPNG = () => {
+    const element = document.getElementById('canvas'); 
+    html2canvas(element).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'whiteboard.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
+  };
 
   render() {
     return (
@@ -589,9 +599,13 @@ export default class App extends React.Component {
           onClick={this.onMouseClickOnCanvas.bind(this)}
           onMouseOut={this.onMouseOutFromCanvas.bind(this)}
         >
+          {/* TODO: For object in this.state?.objects */}
+          {/* Sticky note */}
           <div className="board-obj sticky-note" style={{position: 'absolute', top: "10px", left: "10px"}}>
-            Sample text
+            <p>{ this.state?.objects }</p>
           </div>
+          {/* Image */}
+          {/* <img src="blob url" /> */}
           <canvas
             className={`canvas-frame tool-${this.state.selectedTool}`}
             ref={this.canvasRef}
@@ -612,7 +626,7 @@ export default class App extends React.Component {
             cursor: 'pointer',
           }} 
           onClick={this.exportAsPNG}>Export Board as PNG</button>
-      </div>
+        </div>
       </div>
     );
   }
