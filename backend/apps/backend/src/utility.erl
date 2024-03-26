@@ -2,7 +2,8 @@
 
 -include("common_records.hrl").
 
--export([new_uuid/0, is_valid_uuid/1, vector2_to_map/1, new_color/0, new_anonymous_animal_name/0]).
+-export([new_uuid/0, is_valid_uuid/1, vector2_to_map/1,
+    new_color/0, new_anonymous_animal_name/0, proplist_to_vector2/1]).
 
 -spec new_uuid() -> binary().
 new_uuid() ->
@@ -17,9 +18,9 @@ is_valid_uuid(Uuid) when is_binary(Uuid) ->
     end.
 
 new_color() ->
-    R = integer_to_binary(random:uniform(255), 16),
-    G = integer_to_binary(random:uniform(255), 16),
-    B = integer_to_binary(random:uniform(255), 16),
+    R = integer_to_binary(rand:uniform(255), 16),
+    G = integer_to_binary(rand:uniform(255), 16),
+    B = integer_to_binary(rand:uniform(255), 16),
     <<R/binary, G/binary, B/binary>>.
 
 new_anonymous_animal_name() ->
@@ -33,12 +34,16 @@ new_anonymous_animal_name() ->
     RandomIndex = rand:uniform(length(AnonymousAnimals)),
     lists:nth(RandomIndex, AnonymousAnimals).
 
-vector2_to_map([{<<"x">>, x}, {<<"y">>, Y}]) ->
-    [{<<"x">>, x}, {<<"y">>, Y}];
 vector2_to_map(#vector2{x = X, y = Y}) ->
     #{
         x => X,
         y => Y
+    }.
+
+proplist_to_vector2(Proplist) ->
+    #vector2{
+        x = proplists:get_value(<<"x">>, Proplist),
+        y = proplists:get_value(<<"y">>, Proplist)
     }.
 
 -ifdef(EUNIT).

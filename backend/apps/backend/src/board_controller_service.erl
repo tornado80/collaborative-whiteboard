@@ -57,29 +57,25 @@ get_board_state(Pid) ->
                         canvasObjectType => <<"Image">>,
                         id => ObjectId,
                         zIndex => Object#image.zIndex,
-                        position => utility:vector2_to_map(Object#image.position),
+                        position => Object#image.position,
                         width => Object#image.width,
-                        size => utility:vector2_to_map(Object#image.size),
+                        size => Object#image.size,
                         blobId => Object#image.blobId};
                     drawingCurve -> #{
                         canvasObjectType => <<"DrawCurve">>,
                         id => ObjectId,
-                        points => [
-                            utility:vector2_to_map(Point)
-                        || Point <- Object#drawing_curve.points],
+                        points => Object#drawing_curve.points,
                         color => Object#drawing_curve.color};
                     erasingCurve -> #{
                         canvasObjectType => <<"EraseCurve">>,
                         id => ObjectId,
-                        centers => [
-                            utility:vector2_to_map(Center)
-                        || Center <- Object#erasing_curve.centers],
+                        centers => Object#erasing_curve.centers,
                         radius => Object#erasing_curve.radius};
                     stickyNote -> #{
                         canvasObjectType => <<"StickyNote">>,
                         id => ObjectId,
                         zIndex => Object#stickyNote.zIndex,
-                        position => utility:vector2_to_map(Object#stickyNote.position),
+                        position => Object#stickyNote.position,
                         color => Object#stickyNote.color,
                         text => Object#stickyNote.text};
                     comment -> #{

@@ -10,29 +10,29 @@
 -record(image, {
     %id :: binary(),
     zIndex :: integer(),
-    position :: #vector2{},
+    position :: #vector2{}, % [{<<"x">>, X}, {<<"y">>, Y}]
     color :: binary(),
     width :: integer(),
-    size :: #vector2{},
+    size :: #vector2{}, % [{<<"x">>, X}, {<<"y">>, Y}]
     blobId :: binary()
 }).
 
 -record(drawing_curve, {
     %id :: binary(),
-    points :: [#vector2{}],
+    points :: [#vector2{}], % [[{<<"x">>, X}, {<<"y">>, Y}]]
     color :: binary()
 }).
 
 -record(erasing_curve, {
     %id :: binary(),
-    centers :: [#vector2{}],
+    centers :: [#vector2{}], % [[{<<"x">>, X}, {<<"y">>, Y}]]
     radius :: integer()
 }).
 
 -record(stickyNote, {
     %id :: binary(),
     zIndex :: integer(),
-    position :: #vector2{},
+    position :: #vector2{}, % [{<<"x">>, X}, {<<"y">>, Y}]
     color :: binary(),
     text :: binary()
 }).

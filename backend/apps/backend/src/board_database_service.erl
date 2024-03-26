@@ -59,13 +59,13 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 handle_cast({delete_object, ObjectId}, State) ->
-    true = dets:delete(State#state.board_objects_table, ObjectId),
+    ok = dets:delete(State#state.board_objects_table, ObjectId),
     {noreply, State};
 handle_cast({insert_blob, BlobId, Body}, State) ->
-    true = dets:insert(State#state.board_blobs_table, {BlobId, Body}),
+    ok = dets:insert(State#state.board_blobs_table, {BlobId, Body}),
     {noreply, State};
 handle_cast({insert_object, ObjectId, ObjectType, Object}, State) ->
-    true = dets:insert(State#state.board_objects_table, {ObjectId, ObjectType, Object}),
+    ok = dets:insert(State#state.board_objects_table, {ObjectId, ObjectType, Object}),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.

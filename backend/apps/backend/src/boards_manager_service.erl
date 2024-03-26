@@ -147,13 +147,31 @@ try_get_board_service(Service, BoardId, State) ->
     end.
 
 create_new_board_supervisor(BoardId) ->
-    {ok, Supervisor} = supervisor:start_child(backend_sup, #{
-        id => BoardId,
-        start => {board_sup, start_link, [BoardId]},
-        restart => transient,
-        shutdown => 5000}
-    ),
-    true = ets:insert(boards_table, Entry = {BoardId, supervisor_and_children_monitors_and_pids(BoardId, Supervisor)}),
+    case
+         supervisor:start_child(backend_sup, #{
+             id => BoardId,
+             start => {board_sup, start_link, [BoardId]},
+             restart => transient,
+             shutdown => 5000}
+         )
+    of
+        {ok, Supervisor} ->
+            insert_supervisor_and_children_into_boards_table(BoardId, Supervisor);
+        {error, already_present} ->
+            case supervisor:restart_child(backend_sup, BoardId) of
+                {ok, Supervisor} ->
+                    insert_supervisor_and_children_into_boards_table(BoardId, Supervisor);
+                {error, Error} ->
+                    lager:error("Received error ~p while restarting board supervisor ~p", [Error, BoardId]),
+                    {BoardId}
+            end;
+        {error, {already_started, Supervisor}} ->
+            insert_supervisor_and_children_into_boards_table(BoardId, Supervisor)
+    end.
+
+insert_supervisor_and_children_into_boards_table(BoardId, Supervisor) ->
+    Entry = {BoardId, supervisor_and_children_monitors_and_pids(BoardId, Supervisor)},
+    true = ets:insert(boards_table, Entry),
     Entry.
 
 supervisor_and_children_monitors_and_pids(BoardId, Supervisor) ->
