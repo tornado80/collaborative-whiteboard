@@ -257,7 +257,7 @@ components:
         lastUpdateId:
           type: integer
           format: int64
-        activeUsers:
+        onlineUsers:
           type: array
           items:
             $ref: '#/components/schemas/User'
