@@ -165,10 +165,10 @@ scenario1(Config) ->
     verify_board_is_empty(Config, BoardId),
     
     % create 10 users
-    Supervisor = self(),
+    TestRunner = self(),
     Users = lists:foldl(
         fun(Name, Map) ->
-            Map#{Name => spawn_link(fun() -> create_user(Name, Config, BoardId, Supervisor, new, undefined) end)}
+            Map#{Name => spawn_link(fun() -> create_user(Name, Config, BoardId, TestRunner, new, undefined) end)}
         end,
         #{},
         lists:seq(1, 2)
@@ -179,7 +179,7 @@ scenario1(Config) ->
     #user_state{user_id = U2} = expect_welcome_user(2),
     
     % create third user
-    Pid3 = spawn(fun() -> create_user(3, Config, BoardId, Supervisor, new, undefined) end),
+    Pid3 = spawn(fun() -> create_user(3, Config, BoardId, TestRunner, new, undefined) end),
     
     % wait for welcome message of third user
     #user_state{user_id = U3, session_token = Token} = expect_welcome_user(3),
@@ -203,7 +203,7 @@ scenario1(Config) ->
     expect_user_left(1, U3),
     expect_user_left(2, U3),
     
-    Pid4 = spawn(fun() -> create_user(4, Config, BoardId, Supervisor, continue, Token) end),
+    Pid4 = spawn(fun() -> create_user(4, Config, BoardId, TestRunner, continue, Token) end),
     
     #user_state{user_id = U3, session_token = Token} = expect_welcome_user(4),
     
