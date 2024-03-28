@@ -42,8 +42,9 @@ try_get_board_service(Service, BoardId) ->
 %% Callback functions
 init([]) ->
     process_flag(trap_exit, true),
-    %{ok, FileName} = application:get_env(backend, boards_table_db_name),
-    {ok, boards_table} = dets:open_file(boards_table, [{type, set}, {file, "boards_table"}]),
+    {ok, AppDataDirectory} = application:get_env(backend, app_data_directory),
+    BoardsTablePath = filename:join(AppDataDirectory, "boards_table"),
+    {ok, boards_table} = dets:open_file(boards_table, [{type, set}, {file, BoardsTablePath}]),
     boards_table = ets:new(boards_table, [named_table, set]),
     boards_table = dets:to_ets(boards_table, boards_table),
     boards_monitors = ets:new(boards_monitors, [named_table, set]),
@@ -93,10 +94,12 @@ handle_info({'DOWN', Ref, process, Pid, Reason}, State) ->
         [] ->
             ok;
         [{Ref, board_sup, BoardId}] when Reason == shutdown ->
+            lager:info("Board ~p supervisor has been shut down", [BoardId]),
             spawn(fun() -> ok = supervisor:delete_child(backend_sup, BoardId) end),
             true = ets:delete(boards_monitors, Ref),
             true = ets:insert(boards_table, {BoardId});
         [{Ref, Service, BoardId}] ->
+            lager:info("Service ~p for board ~p went down for reason ~p", [Service, BoardId, Reason]),
             true = ets:delete(boards_monitors, Ref),
             case ets:lookup(boards_table, BoardId) of
                 [] -> % board was deleted

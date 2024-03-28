@@ -12,6 +12,16 @@
 -include("handlers_state_records.hrl").
 
 start(_StartType, _StartArgs) ->
+    AppDataDirectory = case application:get_env(backend, app_data_directory) of
+        {ok, Dir} -> Dir;
+        undefined -> filename:basedir(user_data, "whiteboard-backend")
+    end,
+    ok = case file:make_dir(AppDataDirectory) of
+        ok -> ok;
+        {error, eexist} -> ok;
+        {error, Reason} -> {error, Reason}
+    end,
+    ok = application:set_env(backend, app_data_directory, AppDataDirectory),
     Dispatch = cowboy_router:compile([
         {'_', [
             {"/new", redirect_handler, undefined},

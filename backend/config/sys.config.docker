@@ -1,0 +1,10 @@
+[
+  {backend, [
+    {app_data_directory, "/backend/data"}
+  ]},
+  {lager, [
+    {handlers, [
+      {lager_console_backend, [{level, info}]}
+    ]}
+  ]}
+].

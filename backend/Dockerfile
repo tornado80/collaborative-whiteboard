@@ -13,7 +13,9 @@ COPY rebar.config rebar.lock ./
 RUN rebar3 compile
 
 COPY apps ./apps/
-COPY config ./config/
+COPY config/sys.config.docker ./config/sys.config
+COPY config/vm.args ./config/vm.args
+
 RUN rebar3 as prod release
 
 FROM alpine
@@ -26,6 +28,5 @@ RUN apk add --no-cache openssl && \
 COPY --from=0 /buildroot/_build/prod/rel/backend /backend
 
 EXPOSE 8080
-EXPOSE 8443
 
 CMD ["/backend/bin/backend", "foreground"]

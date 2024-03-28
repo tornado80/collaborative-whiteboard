@@ -28,7 +28,8 @@ Run with Rebar3
 
 This command first fetches dependencies, compiles the project, starts the service, and opens the Erlang shell. 
 You can explore with exported functions of services in the shell. Note that database files are stored in the
-user data directory (usually `~/.local/share` on Linux) under `whiteboard-backend`. 
+user data directory (usually `~/.local/share` but strictly speaking, the value of environment variable `XDG_DATA_HOME`) 
+under `whiteboard-backend`. 
 You can change the directory by setting the `app_data_directory` in
 `sys.config` file.
 
