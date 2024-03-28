@@ -46,14 +46,16 @@ handle_call({create_blob, Body}, _From, State) ->
 handle_call({try_get_blob, BlobId}, _From, State) ->
     case ets:lookup(State#state.blobs_table, BlobId) of
         [] -> {reply, notfound, State};
-        [{_, Body}] -> {reply, {ok, Body}, State}
+        [{BlobId, Body}] -> {reply, {ok, Body}, State}
     end;
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
 handle_cast(load_blobs_from_database, State) ->
+    lager:info("Board ~p cache service is loading blobs from database", [State#state.boardId]),
     load_blobs_from_database(State#state.supervisorPid, State#state.blobs_table),
+    lager:info("Board ~p cache service loaded blobs from database", [State#state.boardId]),
     {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.

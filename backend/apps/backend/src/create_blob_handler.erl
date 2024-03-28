@@ -63,6 +63,7 @@ resource_exists(Req, State = #blob_handler_state{boardId = BoardId}) ->
 handle_create_blob(Req0, State) ->
     {ok, Body, Req1} = read_body(Req0, <<>>),
     {ok, BlobId} = board_cache_service:create_blob(State#blob_handler_state.boardCacheServicePid, Body),
+    lager:info("Blob ~p created in cache service of board ~p", [BlobId, State#blob_handler_state.boardId]),
     NewBody = jsone:encode([{<<"blobId">>, BlobId}]),
     Req2 = cowboy_req:set_resp_body(NewBody, Req1),
     {{created, BlobId}, Req2, State}.

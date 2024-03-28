@@ -447,7 +447,9 @@ handle_call(_Request, _From, State) ->
     {reply, Reply, State}.
 
 handle_cast(load_objects_from_database, State) ->
+    lager:info("Board ~p controller service is loading objects from database", [State#state.board_id]),
     load_objects_from_database(State#state.supervisor_pid, State#state.board_objects_table),
+    lager:info("Board ~p controller service loaded objects from database", [State#state.board_id]),
     {noreply, State};
 handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
     case ets:lookup(State#state.reservations_table, ReservationId) of
