@@ -147,9 +147,11 @@ payload_to_proplist(
     [{<<"proposalId">>, ProposalId}, {<<"errorMessage">>, ErrorMessage}];
 payload_to_proplist(
     #board_update_succeeded_payload{
-        proposalId = ProposalId
+        proposalId = ProposalId,
+        updateId = UpdateId,
+        update = Update
     }) ->
-    [{<<"proposalId">>, ProposalId}];
+    [{<<"proposalId">>, ProposalId}, {<<"updateId">>, UpdateId}, {<<"update">>, Update}];
 payload_to_proplist(
     #board_update_failed_payload{
         proposalId = ProposalId,
