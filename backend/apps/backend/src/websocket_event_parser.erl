@@ -125,9 +125,11 @@ event_to_json(
 payload_to_proplist(
     #welcome_user_payload{
         userId = UserId,
-        sessionToken = SessionToken
+        sessionToken = SessionToken,
+        userName = UserName,
+        color = Color
     }) ->
-    [{<<"userId">>, UserId}, {<<"sessionToken">>, SessionToken}];
+    [{<<"userId">>, UserId}, {<<"sessionToken">>, SessionToken}, {<<"userName">>, UserName}, {<<"color">>, Color}];
 payload_to_proplist(
     #reservation_proposal_succeeded_payload{
         proposalId = ProposalId,
