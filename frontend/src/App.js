@@ -389,6 +389,7 @@ export default class App extends React.Component {
   }
 
   removeObject(objectId) {
+    // TODO: Fix
     this.session.proposeUpdate({
       //canvasObjectType: "stickyNote",
       operationType: "draw",
@@ -424,7 +425,7 @@ export default class App extends React.Component {
     // Alert if proposal was not successful
     this.session.proposeUpdate({
       canvasObjectType: "canvas",
-      operationType: "draw",
+      operationType: "erase",
       operation: {
         canvasObjectOperationType: "erase",
         radius: ERASER_SIZE / 2,
@@ -462,6 +463,10 @@ export default class App extends React.Component {
     }
   }
 
+  componentDidUpdate() {
+    this.reRenderCanvas()
+  }
+
   // Re-renders drawing layer on canvas
   reRenderCanvas() {
     const canvas = this.canvasRef.current
@@ -472,18 +477,38 @@ export default class App extends React.Component {
     ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_HEIGHT)
 
     // Render curve paths from boardState
-    // TODO: Render from state
-    // for (const o of this.state.state.objects) {
-    //   if (o.operationType === "draw") {
-    //     ctx.beginPath()
-    //     ctx.arc(x, y, 5, 0, 2 * Math.PI, false)
-    //     ctx.fill()
-    //   } else if (o.operationType === "erase") {
-    //     ctx.beginPath()
-    //     ctx.clearRect(x, y, ERASER_SIZE, ERASER_SIZE)
-    //     ctx.fill()
-    //   }
-    // }
+    // Render from state
+    this.state.state?.objects?.forEach(o => {
+      console.log("o:", o)
+      if (o.canvasObjectType === "canvas") {
+        if (o.operationType === "draw") {
+          o.operation.points.forEach(p => {
+            ctx.beginPath()
+            ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI, false)
+            ctx.fill()
+          })
+        } else if (o.operationType === "erase") {
+          o.operation.centers.forEach(p => {
+            ctx.beginPath()
+            ctx.clearRect(p.x, p.y, ERASER_SIZE, ERASER_SIZE)
+            ctx.fill()
+          })
+        }
+      } else if (o.canvasObjectType === "DrawCurve") {
+        o.points.forEach(p => {
+          ctx.beginPath()
+          ctx.arc(p.x, p.y, 5, 0, 2 * Math.PI, false)
+          ctx.fill()
+        })
+      } else if (o.canvasObjectType === "EraseCurve") {
+        o.centers.forEach(p => {
+          ctx.beginPath()
+          ctx.clearRect(p.x, p.y, ERASER_SIZE, ERASER_SIZE)
+          ctx.fill()
+        })
+      }
+      
+    })
 
     // Render current waypoints if erase or draw tool selected
     if (this.state.selectedTool === Tool.Draw) {
@@ -600,12 +625,25 @@ export default class App extends React.Component {
           onMouseOut={this.onMouseOutFromCanvas.bind(this)}
         >
           {/* TODO: For object in this.state?.objects */}
+          { this.state.state?.objects?.map(obj => {
+            console.log("Rendering obj", obj)
+            switch (obj.canvasObjectType) {
+              case "StickyNote":
+                return  <div className="board-obj sticky-note" style={{position: 'absolute', top: obj.operation.y + "px", left: obj.operation.x + "px"}}>
+                          <p>{ obj.operation.text }</p>
+                        </div>
+              case "image":
+                return  <img className="board-obj image" style={{position: 'absolute', top: "10px", left: "10px"}} src={ this.session.getBlobResourceUrl(obj.blobId) } />
+              default:
+                // Undefined object type (=> not rendered)
+            }
+          }) }
           {/* Sticky note */}
           <div className="board-obj sticky-note" style={{position: 'absolute', top: "10px", left: "10px"}}>
             <p>{ this.state?.objects }</p>
           </div>
           {/* Image */}
-          {/* <img src="blob url" /> */}
+          {/* <img src={ this.session.getBlobResourceUrl() } /> */}
           <canvas
             className={`canvas-frame tool-${this.state.selectedTool}`}
             ref={this.canvasRef}

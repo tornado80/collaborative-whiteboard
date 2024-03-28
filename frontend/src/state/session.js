@@ -46,6 +46,7 @@ export class Session {
                 this._updateState(
                     this._processEvent(this._state, eventData)
                 )
+                console.log("state updated:", this._state)
             } else if (eventData.eventType === "welcomeUser") {
                 // Save session information (e.g. ID & token)
                 this._userId = eventData.userId
@@ -65,8 +66,6 @@ export class Session {
     }
 
     _processEvent(state, eventData) {
-        // TODO: Check incremental messge counter
-
         // Process events based on event type discriminator field
         switch(eventData.eventType) {
             case "reservationCancelled":
@@ -99,13 +98,18 @@ export class Session {
                     users: this._state.users.filter(u => u.userId !== eventData.userId)
                 }
 
-            case "boardUpdateSucceeded":  // TODO: remove this (should be ignored)
+            case "boardUpdateSucceeded":
                 return {
                     ...state,
-                    objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData]
+                    objects: [...this._state.objects.filter(o => o?.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
                 }
 
+            case "boardUpdateFailed":
+                alert("Committing board action failed.")
+                break;
+
             case "boardUpdated":
+                // Check incremental messge counter
                 if (this._lastAppliedUpdate >= eventData.updateId) {
                     return
                 }
@@ -131,15 +135,21 @@ export class Session {
             default:
                 console.error("Unknown eventType ", eventData.eventType)
         }
+
+        return state
+    }
+
+    getBlobResourceUrl(blobId) {
+        return `/api/rest/boards/${this._boardId}/blobs/${blobId}`
     }
 
     sendEvent(payload) {
         console.log("send message: ", payload)
         if (this._ws.readyState === WebSocket.OPEN) {
             this._ws.send(JSON.stringify(payload));
-          } else {
+        } else {
             console.error('WebSocket connection is not open.');
-          }
+        }
     }
 
     proposeUpdate(update) {
@@ -176,7 +186,7 @@ export class Session {
                 'session-token': this._sessionToken
             }
         }).then((res) => {
-            console.log(res)
+            console.log("Got initial state: ", res)
 
             // TODO: initialize local state with received objects
             const data = res.data
@@ -195,6 +205,7 @@ export class Session {
                 )
             )
             
+            this._ready = true
         })
         .catch(err => {
             console.error(err)
