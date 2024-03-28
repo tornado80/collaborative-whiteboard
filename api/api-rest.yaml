@@ -76,6 +76,14 @@ paths:
             schema:
               type: string
               format: binary
+          image/jpg:
+            schema:
+              type: string
+              format: binary
+          image/jpeg:
+            schema:
+              type: string
+              format: binary
         required: true
       responses:
         '201':
