@@ -113,7 +113,9 @@ handle_event(
                 #event{
                     eventType = <<"boardUpdateSucceeded">>,
                     eventPayload = #board_update_succeeded_payload{
-                        proposalId = ProposalId
+                        proposalId = ProposalId,
+                        updateId = UpdatedId,
+                        update = UpdatePayload
                     }
                 }
             ),
