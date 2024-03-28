@@ -33,7 +33,8 @@ find_board_controller_service(Req, State) ->
             Ref = erlang:monitor(process, BoardControllerPid),
             {cowboy_websocket, Req, State#websocket_handler_state{
                 boardControllerPid = BoardControllerPid,
-                boardControllerRef = Ref}
+                boardControllerRef = Ref},
+                #{idle_timeout => infinity}
             }
     end.
 
