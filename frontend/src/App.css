@@ -89,5 +89,10 @@
 .sticky-note {
   background-color: rgb(255, 232, 23);
   color: black;
-  padding: 4px;
+  font-size: 18px;
+  padding: 8px;
+  min-width: 150px;
+  max-width: 150px;
+  min-height: 50px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.15);
 }

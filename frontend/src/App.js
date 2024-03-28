@@ -627,23 +627,19 @@ export default class App extends React.Component {
           {/* TODO: For object in this.state?.objects */}
           { this.state.state?.objects?.map(obj => {
             console.log("Rendering obj", obj)
+            const o = obj.operation ? obj.operation : obj
             switch (obj.canvasObjectType) {
+              case "stickyNote":
               case "StickyNote":
-                return  <div className="board-obj sticky-note" style={{position: 'absolute', top: obj.operation.y + "px", left: obj.operation.x + "px"}}>
-                          <p>{ obj.operation.text }</p>
+                return  <div className="board-obj sticky-note" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}>
+                          { o.text }
                         </div>
               case "image":
-                return  <img className="board-obj image" style={{position: 'absolute', top: "10px", left: "10px"}} src={ this.session.getBlobResourceUrl(obj.blobId) } />
+                return  <img className="board-obj image" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}} src={ this.session.getBlobResourceUrl(o.blobId) } />
               default:
                 // Undefined object type (=> not rendered)
             }
           }) }
-          {/* Sticky note */}
-          <div className="board-obj sticky-note" style={{position: 'absolute', top: "10px", left: "10px"}}>
-            <p>{ this.state?.objects }</p>
-          </div>
-          {/* Image */}
-          {/* <img src={ this.session.getBlobResourceUrl() } /> */}
           <canvas
             className={`canvas-frame tool-${this.state.selectedTool}`}
             ref={this.canvasRef}
