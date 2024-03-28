@@ -53,7 +53,6 @@ Run tests
 
 You can run Eunit and Common Test tests with the following commands:
 
-    $ rebar3 eunit
-    $ rebar3 ct [--verbose]
+    $ rebar3 do eunit, ct
 
-Use `--verbose` in the Common Test command to see the output of the tests.
+Use `rebar3 ct --verbose` to see the output of Common Test testcases.

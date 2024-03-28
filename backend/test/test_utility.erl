@@ -4,7 +4,8 @@
 
 -export([post_request_to_create_board/1, verify_board_is_empty/2,
     create_user/6, expect_welcome_user/1, expect_user_joined/2,
-    expect_user_left/2, get_board_state/2, post_request_to_create_blob/4, get_blob/3]).
+    expect_user_left/2, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
+    expect_board_update_succeeded/2]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -51,6 +52,9 @@ log_user_action(State, Action) ->
         lists:flatten(Action)])).
 
 create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
+    spawn_link(fun() -> do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) end).
+    
+do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
     State = #user_state{test_name = Name, board_id = BoardId, supervisor = TestRunner},
     log_user_action(State, "created"),
     State1 = open_ws_connection_with_server(Config, State),
@@ -97,6 +101,16 @@ user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name 
             <<"userLeft">> ->
                 UserId = proplists:get_value(<<"userId">>, PropList),
                 TestRunner ! {user_left, TestName, UserId},
+                State;
+            <<"boardUpdateSucceeded">> ->
+                Update = proplists:get_value(<<"update">>, PropList),
+                ProposalId = proplists:get_value(<<"proposalId">>, PropList),
+                CanvasObjectType = proplists:get_value(<<"canvasObjectType">>, Update),
+                OperationType = proplists:get_value(<<"operationType">>, Update),
+                CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, Update),
+                Operation = proplists:get_value(<<"operation">>, Update),
+                CanvasObjectOperationType = proplists:get_value(<<"canvasObjectOperationType">>, Operation),
+                TestRunner ! {board_update_succeeded, TestName, ProposalId, CanvasObjectId},
                 State;
             _ ->
                 TestRunner ! {user_event, TestName, State, EventType, PropList},
@@ -147,4 +161,9 @@ expect_user_joined(TestUserName, JoinedUserId) ->
 expect_user_left(TestUserName, LeftUserId) ->
     receive
         {user_left, TestUserName, LeftUserId} -> ok
+    end.
+
+expect_board_update_succeeded(TestUserName, ProposalId) ->
+    receive
+        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId} -> CanvasObjectId
     end.

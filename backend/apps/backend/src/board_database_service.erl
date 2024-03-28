@@ -41,7 +41,11 @@ init({BoardId, _SupervisorPid}) ->
     boards_manager_service:request_to_be_registered_and_monitored(BoardId, ?MODULE, self()),
     {ok, AppDataDirectory} = application:get_env(backend, app_data_directory),
     BoardDirectory = filename:join(AppDataDirectory, BoardId),
-    ok = file:make_dir(BoardDirectory),
+    ok = case file:make_dir(BoardDirectory) of
+        ok -> ok;
+        {error, eexist} -> ok;
+        {error, Reason} -> {error, Reason}
+    end,
     BoardObjectsTablePath = binary_to_list(filename:join([BoardDirectory, <<"objects_table_", BoardId/binary>>])),
     BoardBlobsTablePath = binary_to_list(filename:join([BoardDirectory, <<"blobs_table_", BoardId/binary>>])),
     lager:info("Paths for board ~p: ~p, ~p", [BoardId, BoardObjectsTablePath, BoardBlobsTablePath]),
@@ -56,6 +60,7 @@ init({BoardId, _SupervisorPid}) ->
 
 handle_call(get_objects_table, _From, State) ->
     ObjectsTable = dets_to_list(State#state.board_objects_table),
+    lager:info("Objects table: ~p", [ObjectsTable]),
     {reply, ObjectsTable, State};
 handle_call(get_blobs_table, _From, State) ->
     BlobsTable = dets_to_list(State#state.board_blobs_table),

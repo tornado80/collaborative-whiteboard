@@ -186,8 +186,8 @@ handle_call(get_board_state, _From, State) ->
         id = State#state.board_id,
         name = State#state.name,
         lastUpdateId = State#state.last_update_id,
-        sessions = [Session || Session <- Sessions],
-        objects = [Object || Object <- Objects]
+        sessions = Sessions,
+        objects = Objects
     },
     {reply, Board, State};
 handle_call(new_session, _From = {WsPid, _}, State) ->
@@ -268,7 +268,6 @@ handle_call({reserve_canvas_object, CanvasObjectId, SessionRef}, _From, State) -
     end,
     {reply, ok, State};
 handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
-    lager:info("Update board: ~p", [UpdatePayload]),
     case ets:lookup(State#state.board_sessions_table, SessionRef) of
         [] ->
             {reply, {error, <<"session not found">>}, State};
@@ -751,7 +750,10 @@ create_new_session(BoardSessionsTable, BoardSessionTokensTable, WsPid) ->
 load_objects_from_database(SupervisorPid, ObjectsTable) ->
     DatabaseServicePid = board_sup:get_board_service_pid(SupervisorPid, board_database_service),
     Objects = board_database_service:get_objects_table(DatabaseServicePid),
-    true = ets:insert(ObjectsTable, Objects).
+    true = ets:insert(ObjectsTable, [{
+        ObjectId, ObjectType, not_reserved, Object}
+        || {ObjectId, ObjectType, Object} <- Objects
+    ]).
 
 insert_object_into_database(SupervisorPid, ObjectId, ObjectType, Object) ->
     DatabaseServicePid = board_sup:get_board_service_pid(SupervisorPid, board_database_service),
@@ -781,7 +783,11 @@ schedule_board_inactivity_timer_if_needed(State) ->
     end.
 
 do_schedule_board_inactivity_timer() ->
-    {ok, Ref} = timer:send_after(60000, shutdown),
+    Time = case application:get_env(board_inactivity_timeout) of
+        undefined -> 60000;
+        {ok, Timeout} -> Timeout
+    end,
+    {ok, Ref} = timer:send_after(Time, shutdown),
     Ref.
 
 cancel_session_inactivity_timer(Session) ->
@@ -792,7 +798,11 @@ cancel_session_inactivity_timer(Session) ->
     end.
 
 schedule_session_inactivity_timer(Session, SessionRef) ->
-    {ok, Ref} = timer:apply_after(60000, ?MODULE, end_session,
+    Time = case application:get_env(session_inactivity_timeout) of
+        undefined -> 60000;
+        {ok, Timeout} -> Timeout
+    end,
+    {ok, Ref} = timer:apply_after(Time, ?MODULE, end_session,
         [self(), SessionRef, {userLeftPermanently, inactive}]),
     Session#session{inactivityTimerRef = Ref}.
 

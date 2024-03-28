@@ -60,7 +60,7 @@ websocket_handle(Frame, State) ->
     {[{active, true}], State}.
 
 websocket_info({broadcast, Event}, State) ->
-    lager:info("Websocket handler ~p is broadcasting event ~p to client", [self(), Event]),
+    lager:info("Websocket handler ~p is broadcasting event to client", [self()]),
     Json = websocket_event_parser:event_to_json(Event),
     {[{text, Json}], State};
 websocket_info({'DOWN', Ref, process, Pid, _Reason}, State = #websocket_handler_state{boardControllerRef = Ref}) ->
