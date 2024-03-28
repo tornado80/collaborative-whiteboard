@@ -39,11 +39,11 @@ find_board_controller_service(Req, State) ->
     end.
 
 websocket_init(State) ->
-    lager:info("Now in websocket connection"),
+    lager:info("Websocket handler ~p is initialized", [self()]),
     {ok, State}.
 
 websocket_handle(_Frame = {text, Json}, State) ->
-    lager:info("Received message: ~p", [Json]),
+    lager:info("Websocket handler ~p received text frame", [self()]),
     case websocket_event_parser:json_to_event(Json) of
         {ok, Event} -> 
             websocket_event_handlers:handle_event(Event, State);
@@ -56,10 +56,11 @@ websocket_handle(_Frame = {binary, _Data}, State) ->
     lager:error(Reason),
     {[{close, Reason}], State};
 websocket_handle(Frame, State) ->
-    lager:info("Received unknown frame: ~p", [Frame]),
+    lager:info("Websocket handler ~p received unknown frame: ~p", [self(), Frame]),
     {[{active, true}], State}.
 
 websocket_info({broadcast, Event}, State) ->
+    lager:info("Websocket handler ~p is broadcasting event ~p to client", [self(), Event]),
     Json = websocket_event_parser:event_to_json(Event),
     {[{text, Json}], State};
 websocket_info({'DOWN', Ref, process, Pid, _Reason}, State = #websocket_handler_state{boardControllerRef = Ref}) ->
