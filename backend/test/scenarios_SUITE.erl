@@ -1,6 +1,5 @@
 -module(scenarios_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include("test_common.hrl").
 
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
@@ -10,6 +9,8 @@ all() ->
     [user_sessions_scenario, large_blobs_uploading_and_downloading_scenario].
 
 init_per_testcase(_TestName, Config) ->
+    AppDataDirectory = proplists:get_value(priv_dir, Config),
+    application:set_env(backend, app_data_directory, AppDataDirectory, [{persistent, true}]),
     application:ensure_all_started(backend),
     application:ensure_all_started(gun),
     Host = "localhost",
@@ -85,5 +86,16 @@ large_blobs_uploading_and_downloading_scenario(Config) ->
     % create a board
     BoardId = test_utility:post_request_to_create_board(Config),
     
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    {ok, Blob} = file:read_file(filename:join(proplists:get_value(data_dir, Config), "test.png")),
+    
+    % create a blob
+    Headers = [{<<"content-type">>, <<"image/png">>}],
+    BlobId = test_utility:post_request_to_create_blob(Config, BoardId, Headers, Blob),
+    
+    % verify blob is created
+    Blob = test_utility:get_blob(Config, BoardId, BlobId),
     
     Config.
