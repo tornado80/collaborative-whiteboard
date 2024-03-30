@@ -3,7 +3,11 @@
 -include("test_common.hrl").
 
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
+<<<<<<< Updated upstream
 -export([user_sessions_scenario/1, large_blobs_uploading_and_downloading_scenario/1, database_persistence/1]).
+=======
+-export([user_sessions_scenario/1, large_blobs_uploading_and_downloading_scenario/1, object_reservation_scenario/1]).
+>>>>>>> Stashed changes
 
 all() ->
     [user_sessions_scenario, large_blobs_uploading_and_downloading_scenario, database_persistence].
@@ -146,4 +150,38 @@ database_persistence(Config) ->
     CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
     0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
     
+
+object_reservation_scenario(Config) ->
+    % create a board
+    BoardId = test_utility:post_request_to_create_board(Config),
+
+    TestRunner = self(),
+
+    % create 3 users
+    User1Pid = spawn_link(fun() -> test_utility:create_user("user1", Config, BoardId, TestRunner, new, undefined) end),
+    User2Pid = spawn_link(fun() -> test_utility:create_user("user2", Config, BoardId, TestRunner, new, undefined) end),
+    User3Pid = spawn_link(fun() -> test_utility:create_user("user3", Config, BoardId, TestRunner, new, undefined) end),
+
+    % verify welcome messages and user joined messages
+    #user_state{user_id = User1Id} = test_utility:expect_welcome_user("user1"),
+    #user_state{user_id = User2Id} = test_utility:expect_welcome_user("user2"),
+    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3"),
+
+
+    %create stickynote by user 1
+    ObjectId = spawn_link(fun() -> test_utility:create_sticky_note("sticky note", Config, BoardId, TestRunner, User1Id, Token) end),
+
+    %reserve proposal by user 2
+    ProposalId = spawn_link(fun() -> test_utility:reserve_propose(Config, BoardId, TestRunner, User2Id, Token, ObjectId) end),
+
+
+    % user 2 expects reserve proposal fail pr pass
+    #object_state{object_id = ObjectId} = test_utility:expect_object_proposal_pass_or_fail(ObjectId,User2Id ),
+
+    % user 1,3 expects object reserve if reserve proposal pass above
+
+    #object_state{object_id = ObjectId} = test_utility:expect_object_reserved(ObjectId,User1Id),
+    #object_state{object_id = ObjectId} = test_utility:expect_object_reserved(ObjectId,User3Id),
+
+
     Config.
