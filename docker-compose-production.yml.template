@@ -18,7 +18,6 @@ services:
     image: nginx:latest
     ports:
       - "443:443"
-    restart: always
     volumes:
       - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
       - ${FULLCHAIN_PATH}:/certs/fullchain.pem:ro
