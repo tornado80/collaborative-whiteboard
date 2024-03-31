@@ -1,0 +1,21 @@
+version: '3'
+services:
+  frontend:
+    restart: always
+    extends:
+      service: frontend
+      file: docker-compose.yml
+  backend:
+    restart: always
+    extends:
+      service: backend
+      file: docker-compose.yml
+  nginx:
+    image: nginx:latest
+    ports:
+      - "443:443"
+    restart: always
+    volumes:
+      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ${FULLCHAIN_PATH}:/certs/fullchain.pem:ro
+      - ${PRIVKEY_PATH}:/certs/privkey.pem:ro
