@@ -2,10 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 COPY package*.json ./
-COPY src/ ./src/
-COPY public/ ./public/
 
-RUN npm install
+RUN npm install -g create-react-app
 
 EXPOSE 3000
 
