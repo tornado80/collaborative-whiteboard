@@ -2,7 +2,7 @@ import './App.css'
 import * as React from "react"
 import Modal from "react-modal"
 import ToolButton from "./ToolButton"
-import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault } from "@mdi/js"
+import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault, mdiUndo, mdiRedo } from "@mdi/js"
 import html2canvas from "html2canvas"
 import { Session } from './state/session';
 
@@ -437,6 +437,18 @@ export default class App extends React.Component {
     this.resetActionState();
   }
 
+  undo() {
+    this.session.sendEvent({
+      eventType: "undoRequested"
+    })
+  }
+
+  redo() {
+    this.session.sendEvent({
+      eventType: "redoRequested"
+    })
+  }
+
   /* Canvas rendereing */
   addWaypointsToCurve(waypoints) {
     const lastWaypoint = this.curveWaypoints[this.curveWaypoints.length - 1]
@@ -574,6 +586,14 @@ export default class App extends React.Component {
             selected={this.state.selectedTool === Tool.Comment}
             onClick={() => this.switchTool(Tool.Comment)}
             icon={mdiComment}
+          />
+          <ToolButton
+            onClick={() => this.undo()}
+            icon={mdiUndo}
+          />
+          <ToolButton
+            onClick={() => this.redo()}
+            icon={mdiRedo}
           />
           {/* x: {this.state.mouse.x},
           y: {this.state.mouse.y},
