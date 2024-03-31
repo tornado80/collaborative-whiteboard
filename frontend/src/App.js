@@ -479,7 +479,6 @@ export default class App extends React.Component {
     // Render curve paths from boardState
     // Render from state
     this.state.state?.objects?.forEach(o => {
-      console.log("o:", o)
       if (o.canvasObjectType === "canvas") {
         if (o.operationType === "draw") {
           o.operation.points.forEach(p => {
@@ -626,16 +625,17 @@ export default class App extends React.Component {
         >
           {/* TODO: For object in this.state?.objects */}
           { this.state.state?.objects?.map(obj => {
-            console.log("Rendering obj", obj)
             const o = obj.operation ? obj.operation : obj
+            const id = obj.canvasObjectId ? obj.canvasObjectId : obj.id
             switch (obj.canvasObjectType) {
               case "stickyNote":
               case "StickyNote":
-                return  <div className="board-obj sticky-note" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}>
+                return  <div key={id} className="board-obj sticky-note" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}>
                           { o.text }
                         </div>
               case "image":
-                return  <img className="board-obj image" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}} src={ this.session.getBlobResourceUrl(o.blobId) } />
+              case "Image":
+                return  <img key={id} className="board-obj image" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}} src={ this.session.getBlobResourceUrl(o.blobId) } />
               default:
                 // Undefined object type (=> not rendered)
             }

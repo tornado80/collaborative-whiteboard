@@ -180,14 +180,11 @@ export class Session {
 
     _fetchInitialState() {
         // Fetch Board State
-        console.log("board", `/api/rest/boards/${this._boardId}`)
         axios.get(`/api/rest/boards/${this._boardId}`, {
             headers: {
                 'session-token': this._sessionToken
             }
         }).then((res) => {
-            console.log("Got initial state: ", res)
-
             // TODO: initialize local state with received objects
             const data = res.data
 
