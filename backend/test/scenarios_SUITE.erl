@@ -182,6 +182,9 @@ blobs_database_persistence(Config) ->
     Headers = [{<<"content-type">>, <<"image/png">>}],
     BlobId = test_utility:post_request_to_create_blob(Config, BoardId, Headers, Blob),
     
+    % create another blob to tests database service cleanup when a blob is not referenced by images
+    Blob2Id = test_utility:post_request_to_create_blob(Config, BoardId, Headers, Blob),
+    
     % verify blob is created
     Blob = test_utility:get_blob(Config, BoardId, BlobId),
     
@@ -218,5 +221,51 @@ blobs_database_persistence(Config) ->
     
     % verify blob is created
     Blob = test_utility:get_blob(Config, BoardId, BlobId),
+    
+    % verify blob is deleted
+    test_utility:verify_blob_does_not_exist(Config, BoardId, Blob2Id),
+    
+    Config.
+
+reservation_mechanism(Config) ->
+    % create a board
+    BoardId = test_utility:post_request_to_create_board(Config),
+    
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    % create a user
+    UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
+    
+    % verify welcome message
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
+    
+    % create sticky note
+    ProposalId = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => ProposalId,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"stickyNote">>,
+            <<"operationType">> => <<"create">>,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"createStickyNote">>,
+                <<"text">> => <<"Hello, World!">>
+            }
+        }
+    })},
+    
+    % expect board update success
+    CanvasObjectId = test_utility:expect_board_update_succeeded("user", ProposalId),
+    
+    % close the connection
+    UserPid ! close_ws,
+    
+    % verify board
+    Board = test_utility:get_board_state(Config, BoardId),
+    [] = proplists:get_value(<<"onlineUsers">>, Board), % verifies new board has been
+    [Object] = proplists:get_value(<<"canvasObjects">>, Board), % verifies database persistence
+    CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
+    0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
     
     Config.

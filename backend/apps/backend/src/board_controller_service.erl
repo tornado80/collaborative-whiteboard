@@ -261,12 +261,11 @@ handle_call({reserve_canvas_object, CanvasObjectId, SessionRef}, _From, State) -
                                         {ReservationId, CanvasObjectId, TimerRef}),
                                     broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, SessionRef,
                                         State#state.board_sessions_table),
-                                    {reply, {ok, ReservationId, erlang:system_time(millisecond) + Period}}
+                                    {reply, {ok, ReservationId, erlang:system_time(millisecond) + Period}, State}
                             end
                     end
             end
-    end,
-    {reply, ok, State};
+    end;
 handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
     case ets:lookup(State#state.board_sessions_table, SessionRef) of
         [] ->
@@ -442,8 +441,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
             end
     end;
 handle_call(_Request, _From, State) ->
-    Reply = ok,
-    {reply, Reply, State}.
+    {reply, ok, State}.
 
 handle_cast(load_objects_from_database, State) ->
     lager:info("Board ~p controller service is loading objects from database", [State#state.board_id]),
@@ -606,8 +604,7 @@ handle_cast({redo, SessionRef}, State) ->
                             {noreply, State}
                     end
             end
-    end,
-    {noreply, State};
+    end;
 handle_cast(_Msg, State) ->
     {noreply, State}.
 

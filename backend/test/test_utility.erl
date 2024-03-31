@@ -5,7 +5,7 @@
 -export([post_request_to_create_board/1, verify_board_is_empty/2,
     create_user/6, expect_welcome_user/1, expect_user_joined/2,
     expect_user_left/2, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
-    expect_board_update_succeeded/2]).
+    expect_board_update_succeeded/2, verify_blob_does_not_exist/3]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -46,6 +46,12 @@ get_blob(Config, BoardId, BlobId) ->
     {ok, Body} = gun:await_body(Pid, StreamRef),
     gun:close(Pid),
     Body.
+
+verify_blob_does_not_exist(Config, BoardId, BlobId) ->
+    Pid = open_connection_with_server(Config),
+    StreamRef = gun:get(Pid, <<"/api/rest/boards/", BoardId/binary, "/blobs/", BlobId/binary>>),
+    {response, _, 404, _Headers} = gun:await(Pid, StreamRef),
+    gun:close(Pid).
 
 log_user_action(State, Action) ->
     ct:print(io_lib:format("User ~p [~p]: ~p", [State#user_state.test_name, State#user_state.server_name,
