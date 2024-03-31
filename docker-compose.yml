@@ -3,7 +3,8 @@ services:
   frontend:
     build: './frontend'
     volumes:
-      - './frontend:/app'
+      - './frontend/src:/app/src'
+      - './frontend/public:/app/public'
     ports:
       - '3000:3000'
   backend:
