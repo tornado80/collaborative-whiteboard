@@ -1,15 +1,17 @@
 version: '3'
 services:
   frontend:
-    restart: always
-    extends:
-      service: frontend
-      file: docker-compose.yml
+    build: './frontend'
+    volumes:
+      - './frontend:/app'
+    ports:
+      - '3000:3000'
   backend:
-    restart: always
-    extends:
-      service: backend
-      file: docker-compose.yml
+    build: './backend'
+    volumes:
+      - 'backend_db:/backend/data'
+    ports:
+      - '8080:8080'
   nginx:
     image: nginx:latest
     ports:
@@ -19,3 +21,5 @@ services:
       - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
       - ${FULLCHAIN_PATH}:/certs/fullchain.pem:ro
       - ${PRIVKEY_PATH}:/certs/privkey.pem:ro
+volumes:
+  backend_db:
