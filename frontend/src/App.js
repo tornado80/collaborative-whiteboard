@@ -2,7 +2,7 @@ import './App.css'
 import * as React from "react"
 import Modal from "react-modal"
 import ToolButton from "./ToolButton"
-import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault, mdiUndo, mdiRedo } from "@mdi/js"
+import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault, mdiExport, mdiUndo, mdiRedo, mdiCommentEyeOutline, mdiCommentOffOutline } from "@mdi/js"
 import html2canvas from "html2canvas"
 import { Session } from './state/session';
 
@@ -62,6 +62,7 @@ export default class App extends React.Component {
     imgToUpload: "", // Image blob to be uploaded (URL-formatted blob)
     stickyNoteText: "", // Sticky note text to be set
     commentText: "", // Comment text to be set
+    showComments: true, // Show comments
   }
 
   curveWaypoints = [] // Waypoints of current path to be drawn or erased
@@ -451,7 +452,6 @@ export default class App extends React.Component {
 
   /* Canvas rendereing */
   addWaypointsToCurve(waypoints) {
-    const lastWaypoint = this.curveWaypoints[this.curveWaypoints.length - 1]
     this.curveWaypoints.push(...waypoints)
 
     const canvas = this.canvasRef.current
@@ -552,6 +552,7 @@ export default class App extends React.Component {
     return (
       <div className="app" id="whiteboard">
         <div className="toolbar">
+          <div className="tool-separator"/>
           <ToolButton
             selected={this.state.selectedTool === Tool.Default}
             onClick={() => this.switchTool(Tool.Default)}
@@ -587,6 +588,7 @@ export default class App extends React.Component {
             onClick={() => this.switchTool(Tool.Comment)}
             icon={mdiComment}
           />
+          <div className="tool-separator"/>
           <ToolButton
             onClick={() => this.undo()}
             icon={mdiUndo}
@@ -595,6 +597,15 @@ export default class App extends React.Component {
             onClick={() => this.redo()}
             icon={mdiRedo}
           />
+          <ToolButton
+            onClick={() => this.setState({ ...this.state, showComments: !this.state.showComments })}
+            icon={this.state.showComments ? mdiCommentOffOutline : mdiCommentEyeOutline}
+          />
+          <ToolButton
+            onClick={() => this.exportAsPNG()}
+            icon={mdiExport}
+          />
+          <div className="tool-separator"/>
           {/* x: {this.state.mouse.x},
           y: {this.state.mouse.y},
           down: {this.state.mouse.down ? "yes" : "no"} */}
@@ -654,7 +665,7 @@ export default class App extends React.Component {
                           key={id}
                           className="board-obj sticky-note"
                           style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
-                          onClick={ () => this.session.reserveObject(id) }
+                          onClick={ () => this.state.selectedTool === Tool.Default && this.session.reserveObject(id) }
                         >
                           { o.text }
                         </div>
@@ -665,6 +676,7 @@ export default class App extends React.Component {
                           className="board-obj image"
                           style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
                           src={ this.session.getBlobResourceUrl(o.blobId) }
+                          onClick={ () => this.state.selectedTool === Tool.Default && this.session.reserveObject(id) }
                         />
               default:
                 // Undefined object type (=> not rendered)
@@ -677,19 +689,24 @@ export default class App extends React.Component {
             height={BOARD_HEIGHT}
           />
         </div>
-        <div>
-          <button style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            zIndex: '999',
-            padding: '8px 16px',
-            backgroundColor: '#f0f0f0',
-            border: '1px solid #ccc',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }} 
-          onClick={this.exportAsPNG}>Export Board as PNG</button>
+        <div className="comments" style={ { display: this.state.showComments ? 'inline' : 'none' } }>
+          <h2>Comments</h2>
+          {
+            this.state.state?.objects?.filter(o => ["comment", "Comment"].includes(o.canvasObjectType))
+              .map(obj => [obj.operation ? obj.operation : obj, obj.canvasObjectId ? obj.canvasObjectId : obj.id])
+              .sort(([o1], [o2]) => o1.timestamp < o2.timestamp)
+              .map(([o, id]) => {
+
+              return <div key={id} className="comment">
+                  <div className="comment-timestamp">
+                    { new Date(o.timestamp).toLocaleString() }
+                  </div>
+                  <div className="comment-text">
+                    { o.text }
+                  </div>
+                </div>
+            })
+          }
         </div>
       </div>
     );
