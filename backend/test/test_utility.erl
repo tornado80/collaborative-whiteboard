@@ -147,85 +147,6 @@ verify_board_is_empty(Config, BoardId) ->
     BoardId = proplists:get_value(<<"id">>, Board),
     [] = proplists:get_value(<<"onlineUsers">>, Board).
 
-create_sticky_note(Name, Config, BoardId, TestRunner, UserId, SessionToken) -> 
-    State = #object_state{test_name = Name, board_id = BoardId, supervisor = TestRunner, session_token = SessionToken, object_id = ObjectId},
-    log_user_action(State, "created"),
-    State1 = open_ws_connection_with_server(Config, State),
-    UpdatePayload = jsone_encode(#{
-        <<"canvasObjectId">> => integer_to_list(uuid:generate()),
-        <<"canvasObjectType">> => <<"stickyNote">>,
-        <<"operationType">> => <<"create">>,
-        <<"operation">> => jsone_encode(#{
-            <<"canvasObjectOperationType">> => <<"createStickyNote">>,
-            <<"position">> => jsone_encode(#{
-                <<"x">> => <<10>>,
-                <<"y">> => <<10>>,
-                <<"color">> => <<"#FF0000FF">>
-            }),
-
-            <<"text">> =>  <<"Hi i am new sticky note">>,
-            <<"color">> => <<"#FF0000FF">>
-        });
-        });
-    StickyNotePayload = jsone_encode(#{
-        <<"eventType">> => <<"boardUpdateProposed">>,
-        <<"proposalId">> => integer_to_list(uuid:generate()),
-        <<"update">> => UpdatePayload
-        });
-    
-    gun:ws_send(State1#user_state.conn_pid, State1#user_state.stream_ref, {text, StickyNotePayload}),
-    log_user_action(#user_state{test_name = Name}, "sent create sticky note message"),
-    gun:close(Pid).
-
-
-reserve_propose(Config, BoardId, TestRunner, UserId, SessionToken, ObjectId) ->
-    State = #object_state{test_name = Name, board_id = BoardId, supervisor = TestRunner, session_token = SessionToken, object_id = ObjectId},
-    State1 = open_ws_connection_with_server(Config, State),
-
-    ReservePayload = jsone_encode(#{
-        <<"eventType">> => <<"reservationProposed">>,
-        <<"canvasObjectId">> => <<ObjectId>>,
-        <<"proposalId">> => integer_to_list(uuid:generate()),
-        });
-
-    gun:ws_send(State1#user_state.conn_pid, State1#user_state.stream_ref, {text, ReservePayload}),
-    gun:close(Pid),
-    #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name = TestName},
-    receive
-        {send, Msg} ->
-            gun:ws_send(Pid, StreamRef, {text, Msg}),
-            State;
-        {gun_ws, Pid, StreamRef, {text, Json}} ->
-            PropList = jsone:decode(Json, [{object_format, proplist}]),
-            EventType = proplists:get_value(<<"eventType">>, PropList),
-            case EventType of
-                <<"reservationProposalSucceeded">> ->
-                    State1 = State#user_state{
-                        user_id = proplists:get_value(<<"userId">>, PropList),
-                        object_id = proplists:get_value(<<"objectId">>, PropList),
-                        proposal_id = proplists:get_value(<<"proposalId">>, PropList),
-                        expiration_timestamp = proplists:get_value(<<"expirationTimestamp">>, PropList),
-                    TestRunner ! {reservation_proposal_succeeded, TestName, State1},
-                    State1;
-                <<"reservationProposalFailed">> ->
-                    UserId = proplists:get_value(<<"userId">>, PropList),
-                    proposal_id = proplists:get_value(<<"proposalId">>, PropList),
-                    
-                    TestRunner ! {reservation_proposal_failed, TestName, UserId},
-                    State;
-
-                _ ->
-                    TestRunner ! {reservation_proposal_failed, TestName, UserId},
-                    State
-            end;
-
-        close_ws ->
-            log_user_action(State, "sending close frame"),
-            gun:ws_send(Pid, StreamRef, close),
-            exit(normal)
-    end,
-
-
 expect_welcome_user(TestUserName) ->
     receive
         {welcome_user, TestUserName, State} -> State
@@ -244,13 +165,4 @@ expect_user_left(TestUserName, LeftUserId) ->
 expect_board_update_succeeded(TestUserName, ProposalId) ->
     receive
         {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId} -> CanvasObjectId
-    end.
-expect_object_proposal_pass_or_fail(ObjectID, UserId) ->
-    receive
-       
-    end.
-
-expect_object_reserved(ObjectID, UserId) ->
-    receive
-       
     end.

@@ -86,7 +86,12 @@ handle_info(_Info, State) ->
 
 terminate(shutdown, State) -> % shutdown by supervisor
     % get list of blobs used in objects
-    Blobs = dets:foldl(fun({_, image, _, #image{blobId = BlobId}}, Acc) -> [BlobId | Acc]; (_, Acc) -> Acc end,
+    Blobs = dets:foldl(
+        fun({_, image, #image{blobId = BlobId}}, Acc) ->
+            [BlobId | Acc];
+        (_, Acc) ->
+            Acc
+        end,
         [], State#state.board_objects_table),
     % delete blobs not in the list
     dets:foldl(

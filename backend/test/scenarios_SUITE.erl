@@ -3,25 +3,29 @@
 -include("test_common.hrl").
 
 -export([all/0, init_per_testcase/2, end_per_testcase/2]).
-<<<<<<< Updated upstream
--export([user_sessions_scenario/1, large_blobs_uploading_and_downloading_scenario/1, database_persistence/1]).
-=======
--export([user_sessions_scenario/1, large_blobs_uploading_and_downloading_scenario/1, object_reservation_scenario/1]).
->>>>>>> Stashed changes
+
+-export([
+    user_sessions_scenario/1,
+    large_blobs_uploading_and_downloading_scenario/1,
+    database_persistence/1,
+    blobs_database_persistence/1
+]).
 
 all() ->
-    [user_sessions_scenario, large_blobs_uploading_and_downloading_scenario, database_persistence].
+    [
+        user_sessions_scenario,
+        large_blobs_uploading_and_downloading_scenario,
+        database_persistence, blobs_database_persistence
+    ].
 
 init_per_testcase(_TestName, Config) ->
     AppDataDirectory = proplists:get_value(priv_dir, Config),
     application:set_env(backend, app_data_directory, AppDataDirectory, [{persistent, true}]),
-    BoardInactivityTimeout = 1000,
-    application:set_env(backend, board_inactivity_timeout, BoardInactivityTimeout, [{persistent, true}]),
     application:ensure_all_started(backend),
     application:ensure_all_started(gun),
     Host = "localhost",
     Port = 8080,
-    [{host, Host}, {port, Port}, {board_inactivity_timeout, BoardInactivityTimeout} | Config].
+    [{host, Host}, {port, Port} | Config].
 
 end_per_testcase(_TestName, Config) ->
     application:stop(backend),
@@ -107,6 +111,10 @@ large_blobs_uploading_and_downloading_scenario(Config) ->
     Config.
 
 database_persistence(Config) ->
+    % this decreases the inactivity timer to shutdown the board controller faster
+    BoardInactivityTimeout = 1000,
+    application:set_env(backend, board_inactivity_timeout, BoardInactivityTimeout, [{persistent, true}]),
+    
     % create a board
     BoardId = test_utility:post_request_to_create_board(Config),
     
@@ -119,7 +127,7 @@ database_persistence(Config) ->
     % verify welcome message
     #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
     
-    
+    % create sticky note
     ProposalId = utility:new_uuid(),
     UserPid ! {send, jsone:encode(#{
         <<"eventType">> => <<"boardUpdateProposed">>,
@@ -141,7 +149,7 @@ database_persistence(Config) ->
     UserPid ! close_ws,
     
     % wait for board controller to shut down
-    timer:sleep(proplists:get_value(board_inactivity_timeout, Config) + 2000),
+    timer:sleep(BoardInactivityTimeout + 2000),
     
     % verify board
     Board = test_utility:get_board_state(Config, BoardId),
@@ -150,38 +158,65 @@ database_persistence(Config) ->
     CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
     0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
     
+    Config.
 
-object_reservation_scenario(Config) ->
+blobs_database_persistence(Config) ->
+    % this decreases the inactivity timer to shutdown the board controller faster
+    BoardInactivityTimeout = 1000,
+    application:set_env(backend, board_inactivity_timeout, BoardInactivityTimeout, [{persistent, true}]),
+    
     % create a board
     BoardId = test_utility:post_request_to_create_board(Config),
-
-    TestRunner = self(),
-
-    % create 3 users
-    User1Pid = spawn_link(fun() -> test_utility:create_user("user1", Config, BoardId, TestRunner, new, undefined) end),
-    User2Pid = spawn_link(fun() -> test_utility:create_user("user2", Config, BoardId, TestRunner, new, undefined) end),
-    User3Pid = spawn_link(fun() -> test_utility:create_user("user3", Config, BoardId, TestRunner, new, undefined) end),
-
-    % verify welcome messages and user joined messages
-    #user_state{user_id = User1Id} = test_utility:expect_welcome_user("user1"),
-    #user_state{user_id = User2Id} = test_utility:expect_welcome_user("user2"),
-    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3"),
-
-
-    %create stickynote by user 1
-    ObjectId = spawn_link(fun() -> test_utility:create_sticky_note("sticky note", Config, BoardId, TestRunner, User1Id, Token) end),
-
-    %reserve proposal by user 2
-    ProposalId = spawn_link(fun() -> test_utility:reserve_propose(Config, BoardId, TestRunner, User2Id, Token, ObjectId) end),
-
-
-    % user 2 expects reserve proposal fail pr pass
-    #object_state{object_id = ObjectId} = test_utility:expect_object_proposal_pass_or_fail(ObjectId,User2Id ),
-
-    % user 1,3 expects object reserve if reserve proposal pass above
-
-    #object_state{object_id = ObjectId} = test_utility:expect_object_reserved(ObjectId,User1Id),
-    #object_state{object_id = ObjectId} = test_utility:expect_object_reserved(ObjectId,User3Id),
-
-
+    
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    % create a user
+    UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
+    
+    % verify welcome message
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
+    
+    % create a blob
+    {ok, Blob} = file:read_file(filename:join(proplists:get_value(data_dir, Config), "test.png")),
+    Headers = [{<<"content-type">>, <<"image/png">>}],
+    BlobId = test_utility:post_request_to_create_blob(Config, BoardId, Headers, Blob),
+    
+    % verify blob is created
+    Blob = test_utility:get_blob(Config, BoardId, BlobId),
+    
+    % create image
+    ProposalId = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => ProposalId,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"image">>,
+            <<"operationType">> => <<"create">>,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"createImage">>,
+                <<"blobId">> => BlobId
+            }
+        }
+    })},
+    
+    % expect board update success
+    CanvasObjectId = test_utility:expect_board_update_succeeded("user", ProposalId),
+    
+    % close the connection
+    UserPid ! close_ws,
+    
+    % wait for board controller to shut down
+    timer:sleep(BoardInactivityTimeout + 2000),
+    
+    % verify board
+    Board = test_utility:get_board_state(Config, BoardId),
+    [] = proplists:get_value(<<"onlineUsers">>, Board), % verifies new board has been
+    [Object] = proplists:get_value(<<"canvasObjects">>, Board), % verifies database persistence
+    CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
+    0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
+    
+    % verify blob is created
+    Blob = test_utility:get_blob(Config, BoardId, BlobId),
+    
     Config.
