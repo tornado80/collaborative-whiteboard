@@ -1,0 +1,28 @@
+version: '3'
+services:
+  frontend:
+    build: './frontend'
+    volumes:
+      - './frontend/src:/app/src'
+      - './frontend/public:/app/public'
+    ports:
+      - '3000:3000'
+    restart: always
+  backend:
+    build: './backend'
+    volumes:
+      - 'backend_db:/backend/data'
+    ports:
+      - '8080:8080'
+    restart: always
+  nginx:
+    image: nginx:latest
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ${FULLCHAIN_PATH}:/certs/fullchain.pem:ro
+      - ${PRIVKEY_PATH}:/certs/privkey.pem:ro
+    restart: always
+volumes:
+  backend_db:
