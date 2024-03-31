@@ -630,12 +630,22 @@ export default class App extends React.Component {
             switch (obj.canvasObjectType) {
               case "stickyNote":
               case "StickyNote":
-                return  <div key={id} className="board-obj sticky-note" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}>
+                return  <div
+                          key={id}
+                          className="board-obj sticky-note"
+                          style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
+                          onClick={ () => this.session.reserveObject(id) }
+                        >
                           { o.text }
                         </div>
               case "image":
               case "Image":
-                return  <img key={id} className="board-obj image" style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}} src={ this.session.getBlobResourceUrl(o.blobId) } />
+                return  <img
+                          key={id}
+                          className="board-obj image"
+                          style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
+                          src={ this.session.getBlobResourceUrl(o.blobId) }
+                        />
               default:
                 // Undefined object type (=> not rendered)
             }

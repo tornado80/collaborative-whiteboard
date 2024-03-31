@@ -1,5 +1,4 @@
 import axios from "axios"
-import { Reservation } from "./reservation"
 import { v4 as uuidv4 } from "uuid"
 
 function wsPathOnsameHost(path) {
@@ -122,6 +121,7 @@ export class Session {
                 }
 
             case "reservationProposalSucceeded":
+                console.log("RESERVED: ", eventData)
                 break
 
             case "reservationProposalFailed":
@@ -214,6 +214,10 @@ export class Session {
     }
 
     reserveObject(objectId) {
-        //const r = new Reservation(this._sessionToken, objectId)
+        this.sendEvent({
+            eventType: "reservationProposed",
+            canvasObjectId: objectId,
+            proposalId: uuidv4(),
+        })
     }
 }
