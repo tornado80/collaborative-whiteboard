@@ -7,7 +7,8 @@
     expect_user_left/3, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
     expect_board_update_succeeded/3, verify_blob_does_not_exist/3,
     expect_reservation_succeeded/3, expect_reservation_cancelled/3,
-    expect_board_updated/5, expect_canvas_object_reserved/5, expect_reservation_expired/3]).
+    expect_board_updated/5, expect_canvas_object_reserved/5, expect_reservation_expired/3,
+    expect_board_update_failed/3, expect_reservation_failed/3]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -135,8 +136,7 @@ user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name 
                     CanvasObjectType = proplists:get_value(<<"canvasObjectType">>, Update),
                     OperationType = proplists:get_value(<<"operationType">>, Update),
                     Operation = proplists:get_value(<<"operation">>, Update),
-                    _CanvasObjectOperationType = proplists:get_value(<<"canvasObjectOperationType">>, Operation),
-                    TestRunner ! {board_updated, TestName, UpdateId, UserId, CanvasObjectId, CanvasObjectType, OperationType},
+                    TestRunner ! {board_updated, TestName, UpdateId, UserId, CanvasObjectId, CanvasObjectType, OperationType, Operation},
                     State;
                 <<"reservationProposalSucceeded">> ->
                     ProposalId = proplists:get_value(<<"proposalId">>, PropList),
@@ -261,7 +261,8 @@ expect_reservation_cancelled(TestUserName, TestUserPid, ReservationId) ->
 
 expect_board_updated(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId) ->
     receive
-        {board_updated, TestUserName, UpdateId, UserId, CanvasObjectId, _CanvasObjectType, _OperationType} -> ok;
+        {board_updated, TestUserName, UpdateId, UserId, CanvasObjectId, _CanvasObjectType, OperationType, Operation} ->
+            {OperationType, Operation};
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(board_updated_not_received)
@@ -281,4 +282,20 @@ expect_reservation_expired(TestUserName, TestUserPid, ReservationId) ->
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_expired_not_received)
+    end.
+
+expect_reservation_failed(TestUserName, TestUserPid, ProposalId) ->
+    receive
+        {reservation_failed, TestUserName, ProposalId, _ErrorMessage} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(reservation_failed_not_received)
+    end.
+
+expect_board_update_failed(TestUserName, TestUserPid, ProposalId) ->
+    receive
+        {board_update_failed, TestUserName, ProposalId, _ErrorMessage} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(board_update_failed_not_received)
     end.

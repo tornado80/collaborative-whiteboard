@@ -277,7 +277,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 canvasObjectId = ObjectId
                             },
                             broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
-                                Session, SessionRef, State#state.board_sessions_table),
+                                Session#session.userId, SessionRef, State#state.board_sessions_table),
                             {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                         erase ->
                             ObjectId = utility:new_uuid(),
@@ -291,7 +291,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 canvasObjectId = ObjectId
                             },
                             broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
-                                Session, SessionRef, State#state.board_sessions_table),
+                                Session#session.userId, SessionRef, State#state.board_sessions_table),
                             {reply, {ok, NewUpdateId, NewUpdatePayload}, NewState};
                         _ ->
                             {reply, {error, <<"invalid operation type">>}, State}
@@ -330,7 +330,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 canvasObjectId = ObjectId
                             },
                             broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
-                                Session, SessionRef, State#state.board_sessions_table),
+                                Session#session.userId, SessionRef, State#state.board_sessions_table),
                             Update = #update{
                                 id = NewUpdateId,
                                 objectId = ObjectId,
@@ -359,7 +359,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                                 canvasObjectId = ObjectId
                                             },
                                             broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
-                                                Session, SessionRef, State#state.board_sessions_table),
+                                                Session#session.userId, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
                                                 id = NewUpdateId,
                                                 objectId = ObjectId,
@@ -404,7 +404,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                                 canvasObjectId = ObjectId
                                             },
                                             broadcast_board_update_to_all_sessions_except_ref(NewUpdatePayload, NewUpdateId,
-                                                Session, SessionRef, State#state.board_sessions_table),
+                                                Session#session.userId, SessionRef, State#state.board_sessions_table),
                                             Update = #update{
                                                 id = NewUpdateId,
                                                 objectId = ObjectId,
@@ -471,60 +471,43 @@ handle_cast({undo, SessionRef}, State) ->
                     NewState = State#state{last_update_id = NewUpdateId},
                     NewValue = Top#update.newValue,
                     case ets:lookup(State#state.board_objects_table, Top#update.objectId) of
-                       [] ->
-                           case Top#update.operationType of
-                               delete ->
-                                   UpdatePayload = to_payload(Top#update{operationType = create}, Top#update.oldValue), % we are undoing :)
-                                   broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId, Session, SessionRef,
+                        [] ->
+                            case Top#update.operationType of
+                                delete ->
+                                    UpdatePayload = to_payload(Top#update{operationType = create}, Top#update.oldValue), % we are undoing :)
+                                    broadcast_board_update_to_all_sessions(UpdatePayload, NewUpdateId, Session#session.userId,
                                        State#state.board_sessions_table),
-                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
-                                       undoStack = Rest,
-                                       redoStack = [Top | Session#session.redoStack]}}),
-                                   insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                       Top#update.objectId, Top#update.objectType, Top#update.oldValue, not_reserved),
-                                   {noreply, NewState};
-                               _ ->
-                                   % undo not allowed and the last update is ignored (current state does not match with
-                                   % the new value of top update)
-                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
-                                   {noreply, State}
-                           end;
-                       [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, NewValue}] ->
-                           case Top#update.operationType of
-                               create ->
-                                    UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.newValue), % we are undoing :)
-                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
-                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
-                                    delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                        Top#update.objectId),
                                     ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
-                                        undoStack = Rest,
-                                        redoStack = [Top | Session#session.redoStack]}}),
-                                    {noreply, NewState};
-                               update ->
-                                   UpdatePayload = to_payload(Top, Top#update.oldValue),
-                                   broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
-                                       NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
-                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
                                        undoStack = Rest,
                                        redoStack = [Top | Session#session.redoStack]}}),
-                                   insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                       ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
-                                   {noreply, NewState};
-                               _ ->
-                                   % undo not allowed and the last update is ignored (current state does not match with
-                                   % the new value of top update)
-                                   ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
-                                   {noreply, State}
-                           end;
-                       [{_ObjectId, _ObjectType, {reserved, _ReservationId, SessionRef}, _}] ->
-                           % undo not allowed and the last update is ignored (current state does not match with
-                           % the new value of top update)
-                           ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
-                           {noreply, State};
-                       _ ->
-                           % object is currently reserved for some one else
-                           {noreply, State}
+                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                                       Top#update.objectId, Top#update.objectType, Top#update.oldValue, not_reserved),
+                                    {noreply, NewState};
+                                _ -> % operation can not be create or update when redoing and object does not exist
+                                    % (the old value of create/update are not undefined which does not match the current state of board)
+                                    % undo not allowed and the last update is ignored (current state does not match with
+                                    % the new value of top update)
+                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                                    {noreply, State}
+                            end;
+                        [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, NewValue}] ->
+                            do_undo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, State, NewState, ObjectId, ObjectType, ReservationStatus);
+                        [{ObjectId, ObjectType, ReservationStatus = not_reserved, NewValue}] ->
+                            lager:info("Undoing operation for object ~p of type ~p when not_reserved", [ObjectId, ObjectType]),
+                            do_undo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, State, NewState, ObjectId, ObjectType, ReservationStatus);
+                        [{_ObjectId, _ObjectType, {reserved, _, SessionRef}, _}] ->
+                            % undo not allowed and the last update is ignored (current state does not match with
+                            % the new value of top update)
+                            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                            {noreply, State};
+                        [{_ObjectId, _ObjectType, not_reserved, _}] ->
+                            % undo not allowed and the last update is ignored (current state does not match with
+                            % the new value of top update)
+                            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+                            {noreply, State};
+                        [{_ObjectId, _ObjectType, {reserved, _, _}, _}] ->
+                            % object is currently reserved for some one else
+                            {noreply, State}
                     end
             end
     end;
@@ -541,58 +524,40 @@ handle_cast({redo, SessionRef}, State) ->
                     NewState = State#state{last_update_id = NewUpdateId},
                     OldValue = Top#update.oldValue,
                     case ets:lookup(State#state.board_objects_table, Top#update.objectId) of
-                        [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, OldValue}] ->
-                            case Top#update.operationType of
-                                delete ->
-                                    UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.oldValue), % we are redoing :)
-                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, NewUpdateId, Session, SessionRef,
-                                        State#state.board_sessions_table),
-                                    delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                        Top#update.objectId),
-                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
-                                        undoStack = [Top | Session#session.undoStack],
-                                        redoStack = Rest}}),
-                                    {noreply, NewState};
-                                update ->
-                                    UpdatePayload = to_payload(Top, Top#update.newValue),
-                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
-                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
-                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
-                                        undoStack = [Top | Session#session.undoStack],
-                                        redoStack = Rest}}),
-                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                        ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
-                                    {noreply, NewState};
-                                _ ->
-                                    % undo not allowed and the last update is ignored (current state does not match with
-                                    % the new value of top update)
-                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
-                                    {noreply, State}
-                            end;
+                        [{ObjectId, ObjectType, ReservationStatus = {reserved, _, SessionRef}, OldValue}] ->
+                            do_redo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, NewState, State, ObjectId, ObjectType, ReservationStatus);
+                        [{ObjectId, ObjectType, ReservationStatus = not_reserved, OldValue}] ->
+                            do_redo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, NewState, State, ObjectId, ObjectType, ReservationStatus);
                         [] ->
                             case Top#update.operationType of
                                 create ->
                                     UpdatePayload = to_payload(Top#update{operationType = create}, Top#update.newValue), % we are redoing :)
-                                    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
-                                        NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
+                                    broadcast_board_update_to_all_sessions(UpdatePayload,
+                                        NewUpdateId, Session#session.userId, State#state.board_sessions_table),
                                     insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
                                         Top#update.objectId, Top#update.objectType, Top#update.newValue, not_reserved),
                                     ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
                                         undoStack = [Top | Session#session.undoStack],
                                         redoStack = Rest}}),
                                     {noreply, NewState};
-                                _ ->
-                                    % undo not allowed and the last update is ignored (current state does not match with
-                                    % the new value of top update)
+                                _ ->  % operation can not be delete or update when redoing and object does not exist
+                                    % (the old value of delete/update are not undefined which does not match the current state of board)
+                                    % redo not allowed and the last update is ignored (current state does not match with
+                                    % the old value of top update)
                                     ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
                                     {noreply, State}
                             end;
-                        [{_ObjectId, _ObjectType, {reserved, _ReservationId, SessionRef}, _}] ->
+                        [{_ObjectId, _ObjectType, {reserved, _, SessionRef}, _}] ->
                             % undo not allowed and the last update is ignored (current state does not match with
-                            % the new value of top update)
+                            % the old value of top update)
                             ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
                             {noreply, State};
-                        _ ->
+                        [{_ObjectId, _ObjectType, not_reserved, _}] ->
+                            % undo not allowed and the last update is ignored (current state does not match with
+                            % the old value of top update)
+                            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
+                            {noreply, State};
+                        [{_ObjectId, _ObjectType, {reserved, _, _}, _}] ->
                             % object is currently reserved for some one else
                             {noreply, State}
                     end
@@ -639,6 +604,66 @@ do_apply_erasing_curves_to_canvas(_ObjectsTable) ->
     % TODO: implement erasing curves
     ok.
 
+do_redo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, NewState, State, ObjectId, ObjectType, ReservationStatus) ->
+    case Top#update.operationType of
+        delete ->
+            UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.oldValue), % we are redoing :)
+            broadcast_board_update_to_all_sessions(UpdatePayload, NewUpdateId, Session#session.userId,
+                State#state.board_sessions_table),
+            delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                Top#update.objectId),
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                undoStack = [Top | Session#session.undoStack],
+                redoStack = Rest}}),
+            {noreply, NewState};
+        update ->
+            UpdatePayload = to_payload(Top, Top#update.newValue),
+            broadcast_board_update_to_all_sessions(UpdatePayload,
+                NewUpdateId, Session#session.userId, State#state.board_sessions_table),
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                undoStack = [Top | Session#session.undoStack],
+                redoStack = Rest}}),
+            insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
+            {noreply, NewState};
+        create -> % operation can not be create when redoing and object already exists
+            % (the old value of create is undefined which does not match the current state of board)
+            % redo not allowed and the last update is ignored (current state does not match with
+            % the old value of top update)
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
+            {noreply, State}
+    end.
+
+do_undo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, State, NewState, ObjectId, ObjectType, ReservationStatus) ->
+    case Top#update.operationType of
+        create ->
+            UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.newValue), % we are undoing :)
+            broadcast_board_update_to_all_sessions(UpdatePayload,
+                NewUpdateId, Session#session.userId, State#state.board_sessions_table),
+            delete_object_from_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                Top#update.objectId),
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                undoStack = Rest,
+                redoStack = [Top | Session#session.redoStack]}}),
+            {noreply, NewState};
+        update ->
+            UpdatePayload = to_payload(Top, Top#update.oldValue),
+            broadcast_board_update_to_all_sessions(UpdatePayload,
+                NewUpdateId, Session#session.userId, State#state.board_sessions_table),
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
+                undoStack = Rest,
+                redoStack = [Top | Session#session.redoStack]}}),
+            insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
+                ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
+            {noreply, NewState};
+        delete -> % operation can not be delete when undoing and object already exists
+            % (the new value of delete is undefined which does not match the current state of board)
+            % undo not allowed and the last update is ignored (current state does not match with
+            % the new value of top update)
+            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
+            {noreply, State}
+    end.
+
 insert_object_into_ets_and_database(SupervisorPid, ObjectsTable, ObjectId, ObjectType, Object, ReservationStatus) ->
     true = ets:insert(ObjectsTable, {ObjectId, ObjectType, ReservationStatus, Object}),
     insert_object_into_database(SupervisorPid, ObjectId, ObjectType, Object).
@@ -648,16 +673,19 @@ delete_object_from_ets_and_database(SupervisorPid, ObjectsTable, ObjectId) ->
     delete_object_from_database(SupervisorPid, ObjectId).
 
 broadcast_board_update_to_all_sessions_except_ref(
-        UpdatePayload, UpdateId, ExceptSession, ExceptSessionRef, SessionsTable) ->
+        UpdatePayload, UpdateId, UserId, ExceptSessionRef, SessionsTable) ->
     broadcast_event_to_all_sessions_except_ref(#event{
         eventType = <<"boardUpdated">>,
         eventPayload = #board_updated_payload{
             updateId = UpdateId,
-            userId = ExceptSession#session.userId,
+            userId = UserId,
             intermediate = false,
             update = UpdatePayload
         }
     }, ExceptSessionRef, SessionsTable).
+
+broadcast_board_update_to_all_sessions(UpdatePayload, UpdateId, UserId, SessionsTable) ->
+    broadcast_board_update_to_all_sessions_except_ref(UpdatePayload, UpdateId, UserId, undefined, SessionsTable).
 
 broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, CanvasObjectId, ExpirationTimestamp, ExceptSession,
         ExceptSessionRef, SessionsTable) ->

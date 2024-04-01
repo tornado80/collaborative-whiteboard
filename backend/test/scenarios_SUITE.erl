@@ -9,8 +9,9 @@
     large_blobs_uploading_and_downloading_scenario/1,
     database_persistence/1,
     blobs_database_persistence/1,
-    update_scenario/1,
-    extend_reservation/1
+    update_sticky_note_scenario/1,
+    extend_reservation/1,
+    undo_redo_scenario/1
 ]).
 
 all() ->
@@ -18,8 +19,9 @@ all() ->
         user_sessions_scenario,
         large_blobs_uploading_and_downloading_scenario,
         database_persistence, blobs_database_persistence,
-        update_scenario,
-        extend_reservation
+        update_sticky_note_scenario,
+        extend_reservation,
+        undo_redo_scenario
     ].
 
 init_per_testcase(_TestName, Config) ->
@@ -222,7 +224,7 @@ blobs_database_persistence(Config) ->
     % verify blob is deleted
     test_utility:verify_blob_does_not_exist(Config, BoardId, Blob2Id).
     
-update_scenario(Config) ->
+update_sticky_note_scenario(Config) ->
     % create a board
     BoardId = test_utility:post_request_to_create_board(Config),
     
@@ -272,6 +274,36 @@ update_scenario(Config) ->
     % expect object reserved
     test_utility:expect_canvas_object_reserved("user2", User2Pid, CanvasObjectId, ReservationId, UserId),
     
+    % try to reserve object by user2
+    User2ProposalId1 = utility:new_uuid(),
+    User2Pid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"reservationProposed">>,
+        <<"canvasObjectId">> => CanvasObjectId,
+        <<"proposalId">> => User2ProposalId1
+    })},
+    
+    % expect reservation failed
+    test_utility:expect_reservation_failed("user2", User2Pid, User2ProposalId1),
+    
+    % try to update object by user2
+    User2ProposalId2 = utility:new_uuid(),
+    User2Pid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => User2ProposalId2,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"stickyNote">>,
+            <<"operationType">> => <<"update">>,
+            <<"canvasObjectId">> => CanvasObjectId,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"updateStickyNote">>,
+                <<"text">> => <<"Hello, World! User 2 Updated!">>
+            }
+        }
+    })},
+    
+    % expect update failed
+    test_utility:expect_board_update_failed("user2", User2Pid, User2ProposalId2),
+    
     % update sticky note
     ProposalId3 = utility:new_uuid(),
     UserPid ! {send, jsone:encode(#{
@@ -294,7 +326,7 @@ update_scenario(Config) ->
     % expect board updated
     test_utility:expect_board_updated("user2", User2Pid, UpdatedId2, UserId, CanvasObjectId),
     
-    % release object
+    % cancel reservation
     UserPid ! {send, jsone:encode(#{
         <<"eventType">> => <<"reservationCancellationRequested">>,
         <<"reservationId">> => ReservationId
@@ -378,3 +410,97 @@ extend_reservation(Config) ->
     
     % close the connection
     UserPid ! close_ws.
+
+undo_redo_scenario(Config) ->
+    % create a board
+    BoardId = test_utility:post_request_to_create_board(Config),
+    
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    % create a user
+    UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
+    
+    % verify welcome message
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user", UserPid),
+    
+    % create sticky note
+    ProposalId = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => ProposalId,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"stickyNote">>,
+            <<"operationType">> => <<"create">>,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"createStickyNote">>,
+                <<"text">> => <<"Hello, World!">>
+            }
+        }
+    })},
+    
+    % expect board update success
+    {CanvasObjectId, _UpdatedId} = test_utility:expect_board_update_succeeded("user", UserPid, ProposalId),
+    
+    % reserve object for update
+    ProposalId2 = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"reservationProposed">>,
+        <<"canvasObjectId">> => CanvasObjectId,
+        <<"proposalId">> => ProposalId2
+    })},
+    
+    % expect reservation success
+    ReservationId = test_utility:expect_reservation_succeeded("user", UserPid, ProposalId2),
+    
+    % update sticky note
+    ProposalId3 = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => ProposalId3,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"stickyNote">>,
+            <<"operationType">> => <<"update">>,
+            <<"canvasObjectId">> => CanvasObjectId,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"updateStickyNote">>,
+                <<"text">> => <<"Hello, World! Updated!">>
+            }
+        }
+    })},
+    
+    % expect board update success
+    {CanvasObjectId, UpdatedId2} = test_utility:expect_board_update_succeeded("user", UserPid, ProposalId3),
+    
+    % cancel reservation
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"reservationCancellationRequested">>,
+        <<"reservationId">> => ReservationId
+    })},
+    
+    % expect reservation cancelled
+    test_utility:expect_reservation_cancelled("user", UserPid, ReservationId),
+    
+    % undo should fail only if object is reserved for someone else
+    % otherwise it should succeed unless operation is not legal (not matching the current state of the object)
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"undoRequested">>
+    })},
+    
+    % expect board update
+    {<<"update">>, Operation} =
+        test_utility:expect_board_updated("user", UserPid, UpdatedId2 + 1, UserId, CanvasObjectId),
+    
+    <<"Hello, World!">> = proplists:get_value(<<"text">>, Operation),
+    
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"redoRequested">>
+    })},
+    
+    % expect board update
+    {<<"update">>, Operation2} =
+        test_utility:expect_board_updated("user", UserPid, UpdatedId2 + 2, UserId, CanvasObjectId),
+    
+    <<"Hello, World! Updated!">> = proplists:get_value(<<"text">>, Operation2),
+    
+    UserPid ! ws_close.
