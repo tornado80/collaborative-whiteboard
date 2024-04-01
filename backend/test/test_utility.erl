@@ -6,7 +6,8 @@
     create_user/6, expect_welcome_user/2, expect_user_joined/3,
     expect_user_left/3, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
     expect_board_update_succeeded/3, verify_blob_does_not_exist/3,
-    expect_reservation_succeeded/3, expect_reservation_cancelled/3]).
+    expect_reservation_succeeded/3, expect_reservation_cancelled/3,
+    expect_board_updated/5, expect_canvas_object_reserved/5, expect_reservation_expired/3]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -236,7 +237,7 @@ expect_user_left(TestUserName, TestUserPid, LeftUserId) ->
 
 expect_board_update_succeeded(TestUserName, TestUserPid, ProposalId) ->
     receive
-        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId, _UpdateId} -> CanvasObjectId;
+        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId, UpdateId} -> {CanvasObjectId, UpdateId};
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(board_update_succeeded_not_received)
@@ -256,4 +257,28 @@ expect_reservation_cancelled(TestUserName, TestUserPid, ReservationId) ->
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_cancelled_not_received)
+    end.
+
+expect_board_updated(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId) ->
+    receive
+        {board_updated, TestUserName, UpdateId, UserId, CanvasObjectId, _CanvasObjectType, _OperationType} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(board_updated_not_received)
+    end.
+
+expect_canvas_object_reserved(TestUserName, TestUserPid, CanvasObjectId, ReservationId, UserId) ->
+    receive
+        {canvas_object_reserved, TestUserName, CanvasObjectId, ReservationId, _ExpirationTimestamp, UserId} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(canvas_object_reserved_not_received)
+    end.
+
+expect_reservation_expired(TestUserName, TestUserPid, ReservationId) ->
+    receive
+        {reservation_expired, TestUserName, ReservationId} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(reservation_expired_not_received)
     end.

@@ -250,12 +250,7 @@ handle_call({reserve_canvas_object, CanvasObjectId, SessionRef}, _From, State) -
                     case ObjectType of
                         curve -> {reply, {error, <<"curves can not be reserved">>}, State};
                         _ ->
-                            case ets:lookup(State#state.board_sessions_table, SessionRef) of
-                                [] ->
-                                    {reply, {error, <<"session not found">>}, State};
-                                [{SessionRef, _Session}] ->
-                                    create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State)
-                            end
+                            create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State)
                     end
             end
     end;
@@ -448,6 +443,7 @@ handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
         [{ReservationId, CanvasObjectId, TimerRef}] ->
             {ok, cancel} = timer:cancel(TimerRef),
             true = ets:delete(State#state.reservations_table, ReservationId),
+            broadcast_reservation_cancelled_to_all_sessions(ReservationId, State#state.board_sessions_table),
             lager:info("Reservation ~p for object ~p was removed from reservations table", [ReservationId, CanvasObjectId]),
             case ets:lookup(State#state.board_objects_table, CanvasObjectId) of
                 [] -> ok;
@@ -455,8 +451,7 @@ handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
                     lager:info("Removing reservation ~p for object ~p from objects table", [ReservationId, CanvasObjectId]),
                     NewReservationStatus = not_reserved,
                     NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
-                    true = ets:insert(State#state.board_objects_table, NewEntry),
-                    broadcast_reservation_cancelled_to_all_sessions(ReservationId, State#state.board_sessions_table);
+                    true = ets:insert(State#state.board_objects_table, NewEntry);
                 X ->
                     lager:info("Encountered ~p while cancelling reservation ~p for object ~p", [X, ReservationId, CanvasObjectId]),
                     ok
@@ -610,7 +605,8 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
     case ets:lookup(State#state.reservations_table, ReservationId) of
         [] -> ok; % reservation was cancelled before
         [{ReservationId, CanvasObjectId, _TimerRef}] ->
-            true = ets:delete(State#state.reservations_table, ReservationId);
+            true = ets:delete(State#state.reservations_table, ReservationId),
+            broadcast_reservation_expired_to_all_sessions(ReservationId, State#state.board_sessions_table);
         _ -> ok
     end,
     case ets:lookup(State#state.board_objects_table, CanvasObjectId) of
@@ -618,8 +614,7 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
         [{CanvasObjectId, ObjectType, {reserved, ReservationId, SessionRef}, Object}] ->
             NewReservationStatus = not_reserved,
             NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
-            true = ets:insert(State#state.board_objects_table, NewEntry),
-            broadcast_reservation_expired_to_all_sessions(ReservationId, State#state.board_sessions_table);
+            true = ets:insert(State#state.board_objects_table, NewEntry);
         _ -> ok % not reserved or reserved but not by the session or with the same reservation id
     end,
     {noreply, State};
@@ -664,11 +659,15 @@ broadcast_board_update_to_all_sessions_except_ref(
         }
     }, ExceptSessionRef, SessionsTable).
 
-broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, ExceptSessionRef, SessionsTable) ->
+broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, CanvasObjectId, ExpirationTimestamp, ExceptSession,
+        ExceptSessionRef, SessionsTable) ->
     broadcast_event_to_all_sessions_except_ref(#event{
         eventType = <<"canvasObjectReserved">>,
         eventPayload = #canvas_object_reserved_payload{
-            reservationId = ReservationId
+            reservationId = ReservationId,
+            userId = ExceptSession#session.userId,
+            canvasObjectId = CanvasObjectId,
+            expirationTimestamp = ExpirationTimestamp
         }
     }, ExceptSessionRef, SessionsTable).
 
@@ -744,6 +743,14 @@ create_new_session(BoardSessionsTable, BoardSessionTokensTable, WsPid) ->
     {ok, Session, SessionRef}.
 
 create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State) ->
+    case ets:lookup(State#state.board_sessions_table, SessionRef) of
+        [] ->
+            {reply, {error, <<"session not found">>}, State};
+        [{SessionRef, Session}] ->
+            do_create_new_reservation(CanvasObjectId, ObjectType, Object, Session, SessionRef, State)
+    end.
+
+do_create_new_reservation(CanvasObjectId, ObjectType, Object, Session, SessionRef, State) ->
     ReservationPeriod = case application:get_env(object_reservation_period) of
         undefined -> 10000;
         {ok, Period} -> Period
@@ -757,7 +764,7 @@ create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State) ->
         {auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}),
     true = ets:insert(State#state.reservations_table,
         {ReservationId, CanvasObjectId, TimerRef}),
-    broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, SessionRef,
+    broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, CanvasObjectId, ExpirationTime, Session, SessionRef,
         State#state.board_sessions_table),
     {reply, {ok, ReservationId, ExpirationTime}, State}.
 

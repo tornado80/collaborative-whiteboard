@@ -189,9 +189,16 @@ payload_to_proplist(
 payload_to_proplist(
     #canvas_object_reserved_payload{
         reservationId = ReservationId,
-        canvasObjectId = CanvasObjectId
+        canvasObjectId = CanvasObjectId,
+        userId = UserId,
+        expirationTimestamp = ExpirationTimestamp
     }) ->
-    [{<<"reservationId">>, ReservationId}, {<<"canvasObjectId">>, CanvasObjectId}].
+    [
+        {<<"reservationId">>, ReservationId},
+        {<<"canvasObjectId">>, CanvasObjectId},
+        {<<"userId">>, UserId},
+        {<<"expirationTimestamp">>, ExpirationTimestamp}
+    ].
 
 update_payload_to_proplist(
     #update_payload{
