@@ -20,7 +20,7 @@ services:
     ports:
       - "443:443"
     volumes:
-      - ./nginx-production.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx-production.conf:/etc/nginx/conf.d/default.conf:ro
       - ${FULLCHAIN_PATH}:/certs/fullchain.pem:ro
       - ${PRIVKEY_PATH}:/certs/privkey.pem:ro
     restart: always
