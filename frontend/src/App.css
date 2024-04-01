@@ -104,8 +104,8 @@
   box-shadow: 0 3px 10px rgb(0 0 0 / 0.15);
 }
 
-.selected {
-  box-shadow: 0 3px 10px rgba(255, 115, 0, 0.15) !important;
+.board-obj.selected {
+  box-shadow: 0 3px 10px rgba(255, 115, 0, 0.75) !important;
 }
 
 .cavas-container {

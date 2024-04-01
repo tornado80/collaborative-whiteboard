@@ -12,7 +12,12 @@ export default class ToolButton extends React.Component {
 
   render() {
     return (
-          <button className={"tool-button" + (this.props.selected ? " selected" : "")} onClick={ this.onClick.bind(this) }>
+          <button
+            className={"tool-button" + (this.props.selected ? " selected" : "")}
+            onClick={ this.onClick.bind(this) }
+            disabled={this.props.disabled}
+          >
+            {this.props.disabled}
             <Icon
               path={this.props.icon}
               size={2}

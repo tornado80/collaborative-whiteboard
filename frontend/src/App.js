@@ -2,7 +2,7 @@ import './App.css'
 import * as React from "react"
 import Modal from "react-modal"
 import ToolButton from "./ToolButton"
-import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault, mdiExport, mdiUndo, mdiRedo, mdiCommentEyeOutline, mdiCommentOffOutline } from "@mdi/js"
+import { mdiPencil, mdiEraser, mdiNote, mdiComment, mdiImage, mdiCursorMove, mdiCursorDefault, mdiExport, mdiUndo, mdiRedo, mdiCommentEyeOutline, mdiCommentOffOutline, mdiDelete } from "@mdi/js"
 import html2canvas from "html2canvas"
 import { Session } from './state/session';
 
@@ -64,6 +64,8 @@ export default class App extends React.Component {
     commentText: "", // Comment text to be set
     showComments: true, // Show comments
   }
+
+  selectedReservation = null // Object holding cancel callback fn or null
 
   curveWaypoints = [] // Waypoints of current path to be drawn or erased
 
@@ -322,6 +324,18 @@ export default class App extends React.Component {
 
   /* Tool-specific methods */
 
+  selectObject(objectId, objectType) {
+    if (this.selectedReservation) {
+      this.selectedReservation.cancel()
+    }
+
+    if (objectId) {
+      this.selectedReservation = this.session.reserveObject(objectId, objectType)
+    } else {
+      this.selectedReservation = null
+    }
+  }
+
   // Called when modal "form" is submitted and changes the board state.
   addStickyNote() {    
     this.session.proposeUpdate({
@@ -389,17 +403,39 @@ export default class App extends React.Component {
     this.resetActionState();
   }
 
-  removeObject(objectId) {
-    // TODO: Fix
-    this.session.proposeUpdate({
-      //canvasObjectType: "stickyNote",
-      operationType: "draw",
-      operation: {
-        canvasObjectOperationType: "draw",
-        points: [...this.curveWaypoints],
-        color: "#000000", // black
-      }
-    })
+  deleteSelectedObject() {
+    if (!this.selectedReservation) {
+      return
+    }
+
+    switch(this.selectedReservation.type) {
+      case "stickyNote":
+        this.session.proposeUpdate({
+          canvasObjectType: "stickyNote",
+          operationType: "delete",
+          canvasObjectId: this.selectedReservation.objectId,
+          operation: {
+            canvasObjectOperationType: "deleteStickyNote"
+          }
+        })
+        break
+
+      case "image":
+        this.session.proposeUpdate({
+          canvasObjectType: "image",
+          operationType: "delete",
+          canvasObjectId: this.selectedReservation.objectId,
+          operation: {
+            canvasObjectOperationType: "deleteImage"
+          }
+        })
+        break
+
+      default:
+        return
+    }
+
+    this.selectObject(null)
   }
 
   // Called when drag finished and changes the board state.
@@ -590,6 +626,12 @@ export default class App extends React.Component {
           />
           <div className="tool-separator"/>
           <ToolButton
+            disabled={this.state.state.reservations && this.state.state.reservations.length === 0}
+            onClick={() => this.deleteSelectedObject()}
+            icon={mdiDelete}
+          />
+          <div className="tool-separator"/>
+          <ToolButton
             onClick={() => this.undo()}
             icon={mdiUndo}
           />
@@ -656,6 +698,8 @@ export default class App extends React.Component {
         >
           {/* TODO: For object in this.state?.objects */}
           { this.state.state?.objects?.map(obj => {
+            console.log("RENDERING:", obj)
+
             const o = obj.operation ? obj.operation : obj
             const id = obj.canvasObjectId ? obj.canvasObjectId : obj.id
             switch (obj.canvasObjectType) {
@@ -663,9 +707,9 @@ export default class App extends React.Component {
               case "StickyNote":
                 return  <div
                           key={id}
-                          className="board-obj sticky-note"
+                          className={"board-obj sticky-note" + (this.state.state.reservations.find(r => r.objectId === id && r.reservationId) ? " selected" : "")}
                           style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
-                          onClick={ () => this.state.selectedTool === Tool.Default && this.session.reserveObject(id) }
+                          onClick={ () => this.state.selectedTool === Tool.Default && this.selectObject(id, "stickyNote") }
                         >
                           { o.text }
                         </div>
@@ -673,10 +717,10 @@ export default class App extends React.Component {
               case "Image":
                 return  <img
                           key={id}
-                          className="board-obj image"
+                          className={"board-obj image" + (this.state.state.reservations.find(r => r.objectId === id && r.reservationId) ? " selected" : "")}
                           style={{position: 'absolute', top: o.position.y - this.canvasScrollRef.current.offsetTop + "px", left: o.position.x + this.canvasRef.current.offsetLeft + "px"}}
                           src={ this.session.getBlobResourceUrl(o.blobId) }
-                          onClick={ () => this.state.selectedTool === Tool.Default && this.session.reserveObject(id) }
+                          onClick={ () => this.state.selectedTool === Tool.Default && this.selectObject(id, "image") }
                         />
               default:
                 // Undefined object type (=> not rendered)

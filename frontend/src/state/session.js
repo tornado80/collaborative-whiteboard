@@ -1,6 +1,8 @@
 import axios from "axios"
 import { v4 as uuidv4 } from "uuid"
 
+const RESERVATION_TIMEOUT = 10 /* in seconds */
+
 function wsPathOnsameHost(path) {
     const loc = window.location
     return (loc.protocol === "https:" ? "wss" : "ws") + "://" + loc.host + path;
@@ -98,9 +100,17 @@ export class Session {
                 }
 
             case "boardUpdateSucceeded":
-                return {
-                    ...state,
-                    objects: [...this._state.objects.filter(o => o?.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
+                if (eventData.update.operationType === "delete") {
+                    return {
+                        ...state,
+                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId)],
+                        reservations: [...this._state.reservations.filter(r => r.objectId !== eventData.update.canvasObjectId)]
+                    }
+                } else {
+                    return {
+                        ...state,
+                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
+                    }
                 }
 
             case "boardUpdateFailed":
@@ -115,18 +125,49 @@ export class Session {
 
                 this._lastAppliedUpdate = eventData.updateId
 
-                return {
-                    ...state,
-                    objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
+                if (eventData.update.operationType === "delete") {
+                    return {
+                        ...state,
+                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId)],
+                        reservations: [...this._state.reservations.filter(r => r.objectId !== eventData.update.canvasObjectId)]
+                    }
+                } else {
+                    return {
+                        ...state,
+                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId), eventData.update]
+                    }
                 }
 
             case "reservationProposalSucceeded":
-                console.log("RESERVED: ", eventData)
-                break
+                const reservation = this._state.reservations.find(r => r.proposalId === eventData.proposalId)
+
+                if (!reservation) {
+                    break;
+                }
+
+                setTimeout(
+                    () => {
+                        /* Renew reservation */
+                        if (this._state.reservations.find(r => r.objectId === reservation.objectId)) {
+                            this._proposeReservation(reservation.objectId)
+                        }
+                    },
+                    Math.floor(0.8 * RESERVATION_TIMEOUT * 1000)
+                )
+
+                return({
+                    ...this._state,
+                    reservations: [
+                        ...this._state.reservations.filter(r => r.proposalId !== eventData.proposalId),
+                        { ...reservation, ...eventData }]
+                })
 
             case "reservationProposalFailed":
                 alert("Failed to reserve object")
-                break
+                return {
+                    ...this._state,
+                    reservations: [...this._state.reservations.filter(r => r.proposalId !== eventData.proposalId)]
+                }
 
             case "boardUpdateFailed":
                 alert("Failed to update object")
@@ -213,11 +254,52 @@ export class Session {
         return this._userId
     }
 
-    reserveObject(objectId) {
+    _proposeReservation(objectId) {
+        const proposalId = uuidv4()
+
+        this._updateState({
+            ...this._state,
+            reservations: [...this._state.reservations.filter(r => r.objectId !== objectId), { ...this._state.reservations.find(r => r.objectId === objectId), objectId, proposalId }]
+        })
+
         this.sendEvent({
             eventType: "reservationProposed",
             canvasObjectId: objectId,
-            proposalId: uuidv4(),
+            proposalId,
         })
+    }
+
+    reserveObject(objectId, objectType) {
+        if (this._state.reservations.find(r => r.objectId === objectId)) {
+            // Already reserved
+            return
+        }
+
+        this._proposeReservation(objectId)
+
+
+        return {
+            objectId,
+            cancel: () => {
+                /* Cancel hook */
+                console.log("Cancelling reservation")
+
+                const reservation = this._state.reservations.find(r => r.objectId === objectId)
+                if (!reservation) {
+                    return
+                }
+
+                this.sendEvent({
+                    eventType: "reservationCancelled",
+                    reservationId: reservation.reservationId,
+                })
+
+                // this._updateState({
+                //     ...this._state,
+                //     reservations: [...this._state.reservations.filter(r => r.objectId !== objectId)]
+                // })
+            },
+            type: objectType
+        }
     }
 }
