@@ -32,5 +32,9 @@ http {
         location /new {
             proxy_pass http://backend:8080;
         }
+
+        location / {
+            proxy_pass http://backend:8080;
+        }
     }
 }

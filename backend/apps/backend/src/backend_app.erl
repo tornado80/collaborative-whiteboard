@@ -24,6 +24,7 @@ start(_StartType, _StartArgs) ->
     ok = application:set_env(backend, app_data_directory, AppDataDirectory),
     Dispatch = cowboy_router:compile([
         {'_', [
+            {"/", redirect_handler, undefined},
             {"/new", redirect_handler, undefined},
             {"/api", backend_handler, undefined},
             {"/api/rest/boards", create_board_handler, undefined},
