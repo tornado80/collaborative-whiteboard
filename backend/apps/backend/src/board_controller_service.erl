@@ -240,28 +240,21 @@ handle_call({reserve_canvas_object, CanvasObjectId, SessionRef}, _From, State) -
             {reply, {error, <<"object not found">>}, State};
         [{CanvasObjectId, ObjectType, ReservationStatus, Object}] ->
             case ReservationStatus of
-                {reserved, _Ref} ->
+                {reserved, ReservationId, SessionRef} -> % extending reservation
+                    % cancel the previous reservation
+                    gen_server:cast(self(), {cancel_reservation, ReservationId, SessionRef}),
+                    create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State);
+                {reserved, _ReservationId, _Ref} ->
                     {reply, {error, <<"already reserved">>}, State};
                 not_reserved ->
                     case ObjectType of
-                        curve -> {reply, {error, <<"curves do not need reservation">>}, State};
+                        curve -> {reply, {error, <<"curves can not be reserved">>}, State};
                         _ ->
                             case ets:lookup(State#state.board_sessions_table, SessionRef) of
                                 [] ->
                                     {reply, {error, <<"session not found">>}, State};
                                 [{SessionRef, _Session}] ->
-                                    NewReservationStatus = {reserved, SessionRef},
-                                    NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
-                                    true = ets:insert(State#state.board_objects_table, NewEntry),
-                                    ReservationId = utility:new_uuid(),
-                                    Period = 10000,
-                                    {ok, TimerRef} = timer:send_after(Period,
-                                        {auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}),
-                                    true = ets:insert(State#state.reservations_table,
-                                        {ReservationId, CanvasObjectId, TimerRef}),
-                                    broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, SessionRef,
-                                        State#state.board_sessions_table),
-                                    {reply, {ok, ReservationId, erlang:system_time(millisecond) + Period}, State}
+                                    create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State)
                             end
                     end
             end
@@ -284,7 +277,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 color = proplists:get_value(<<"color">>, PropList)
                             },
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
-                                State#state.board_objects_table, ObjectId, drawingCurve, Object),
+                                State#state.board_objects_table, ObjectId, drawingCurve, Object, not_reserved),
                             NewUpdatePayload = UpdatePayload#update_payload{
                                 canvasObjectId = ObjectId
                             },
@@ -298,7 +291,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                 radius = proplists:get_value(<<"radius">>, PropList)
                             },
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
-                                State#state.board_objects_table, ObjectId, erasingCurve, Object),
+                                State#state.board_objects_table, ObjectId, erasingCurve, Object, not_reserved),
                             NewUpdatePayload = UpdatePayload#update_payload{
                                 canvasObjectId = ObjectId
                             },
@@ -337,7 +330,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                     }
                             end,
                             insert_object_into_ets_and_database(State#state.supervisor_pid,
-                                State#state.board_objects_table, ObjectId, ObjectType, Object),
+                                State#state.board_objects_table, ObjectId, ObjectType, Object, not_reserved),
                             NewUpdatePayload = UpdatePayload#update_payload{
                                 canvasObjectId = ObjectId
                             },
@@ -362,7 +355,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                             case ets:lookup(State#state.board_objects_table, ObjectId) of
                                 [] ->
                                     {reply, {error, <<"object id not found">>}, State};
-                                [{ObjectId, ObjectType, {reserved, SessionRef}, Object}] ->
+                                [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, Object}] ->
                                     case X of
                                         delete ->
                                             delete_object_from_ets_and_database(State#state.supervisor_pid,
@@ -411,7 +404,7 @@ handle_call({update_board, UpdatePayload, SessionRef}, _From, State) ->
                                                     }
                                             end,
                                             insert_object_into_ets_and_database(State#state.supervisor_pid,
-                                                State#state.board_objects_table, ObjectId, ObjectType, NewObject),
+                                                State#state.board_objects_table, ObjectId, ObjectType, NewObject, ReservationStatus),
                                             NewUpdatePayload = UpdatePayload#update_payload{
                                                 canvasObjectId = ObjectId
                                             },
@@ -449,19 +442,24 @@ handle_cast(load_objects_from_database, State) ->
     lager:info("Board ~p controller service loaded objects from database", [State#state.board_id]),
     {noreply, State};
 handle_cast({cancel_reservation, ReservationId, SessionRef}, State) ->
+    lager:info("Cancelling reservation ~p for session ~p", [ReservationId, SessionRef]),
     case ets:lookup(State#state.reservations_table, ReservationId) of
         [] -> ok;
         [{ReservationId, CanvasObjectId, TimerRef}] ->
             {ok, cancel} = timer:cancel(TimerRef),
             true = ets:delete(State#state.reservations_table, ReservationId),
+            lager:info("Reservation ~p for object ~p was removed from reservations table", [ReservationId, CanvasObjectId]),
             case ets:lookup(State#state.board_objects_table, CanvasObjectId) of
                 [] -> ok;
-                [{CanvasObjectId, ObjectType, {reserved, SessionRef}, Object}] ->
+                [{CanvasObjectId, ObjectType, {reserved, ReservationId, SessionRef}, Object}] ->
+                    lager:info("Removing reservation ~p for object ~p from objects table", [ReservationId, CanvasObjectId]),
                     NewReservationStatus = not_reserved,
                     NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
                     true = ets:insert(State#state.board_objects_table, NewEntry),
                     broadcast_reservation_cancelled_to_all_sessions(ReservationId, State#state.board_sessions_table);
-                _ -> ok
+                X ->
+                    lager:info("Encountered ~p while cancelling reservation ~p for object ~p", [X, ReservationId, CanvasObjectId]),
+                    ok
             end
     end,
     {noreply, State};
@@ -488,7 +486,7 @@ handle_cast({undo, SessionRef}, State) ->
                                        undoStack = Rest,
                                        redoStack = [Top | Session#session.redoStack]}}),
                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                       Top#update.objectId, Top#update.objectType, Top#update.oldValue),
+                                       Top#update.objectId, Top#update.objectType, Top#update.oldValue, not_reserved),
                                    {noreply, NewState};
                                _ ->
                                    % undo not allowed and the last update is ignored (current state does not match with
@@ -496,7 +494,7 @@ handle_cast({undo, SessionRef}, State) ->
                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
                                    {noreply, State}
                            end;
-                       [{ObjectId, ObjectType, {reserved, SessionRef}, NewValue}] ->
+                       [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, NewValue}] ->
                            case Top#update.operationType of
                                create ->
                                     UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.newValue), % we are undoing :)
@@ -516,7 +514,7 @@ handle_cast({undo, SessionRef}, State) ->
                                        undoStack = Rest,
                                        redoStack = [Top | Session#session.redoStack]}}),
                                    insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                       ObjectId, ObjectType, Top#update.oldValue),
+                                       ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
                                    {noreply, NewState};
                                _ ->
                                    % undo not allowed and the last update is ignored (current state does not match with
@@ -524,7 +522,7 @@ handle_cast({undo, SessionRef}, State) ->
                                    ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
                                    {noreply, State}
                            end;
-                       [{_ObjectId, _ObjectType, {reserved, SessionRef}, _}] ->
+                       [{_ObjectId, _ObjectType, {reserved, _ReservationId, SessionRef}, _}] ->
                            % undo not allowed and the last update is ignored (current state does not match with
                            % the new value of top update)
                            ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{undoStack = Rest}}),
@@ -548,7 +546,7 @@ handle_cast({redo, SessionRef}, State) ->
                     NewState = State#state{last_update_id = NewUpdateId},
                     OldValue = Top#update.oldValue,
                     case ets:lookup(State#state.board_objects_table, Top#update.objectId) of
-                        [{ObjectId, ObjectType, {reserved, SessionRef}, OldValue}] ->
+                        [{ObjectId, ObjectType, ReservationStatus = {reserved, _ReservationId, SessionRef}, OldValue}] ->
                             case Top#update.operationType of
                                 delete ->
                                     UpdatePayload = to_payload(Top#update{operationType = delete}, Top#update.oldValue), % we are redoing :)
@@ -568,7 +566,7 @@ handle_cast({redo, SessionRef}, State) ->
                                         undoStack = [Top | Session#session.undoStack],
                                         redoStack = Rest}}),
                                     insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                        ObjectId, ObjectType, Top#update.oldValue),
+                                        ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
                                     {noreply, NewState};
                                 _ ->
                                     % undo not allowed and the last update is ignored (current state does not match with
@@ -583,7 +581,7 @@ handle_cast({redo, SessionRef}, State) ->
                                     broadcast_board_update_to_all_sessions_except_ref(UpdatePayload,
                                         NewUpdateId, Session, SessionRef, State#state.board_sessions_table),
                                     insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                                        Top#update.objectId, Top#update.objectType, Top#update.newValue),
+                                        Top#update.objectId, Top#update.objectType, Top#update.newValue, not_reserved),
                                     ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{
                                         undoStack = [Top | Session#session.undoStack],
                                         redoStack = Rest}}),
@@ -594,7 +592,7 @@ handle_cast({redo, SessionRef}, State) ->
                                     ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
                                     {noreply, State}
                             end;
-                        [{_ObjectId, _ObjectType, {reserved, SessionRef}, _}] ->
+                        [{_ObjectId, _ObjectType, {reserved, _ReservationId, SessionRef}, _}] ->
                             % undo not allowed and the last update is ignored (current state does not match with
                             % the new value of top update)
                             ets:insert(State#state.board_sessions_table, {SessionRef, Session#session{redoStack = Rest}}),
@@ -616,13 +614,13 @@ handle_info({auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}
         _ -> ok
     end,
     case ets:lookup(State#state.board_objects_table, CanvasObjectId) of
-        [] -> ok; % strange case
-        [{CanvasObjectId, ObjectType, {reserved, SessionRef}, Object}] ->
+        [] -> ok; % object was deleted before
+        [{CanvasObjectId, ObjectType, {reserved, ReservationId, SessionRef}, Object}] ->
             NewReservationStatus = not_reserved,
             NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
             true = ets:insert(State#state.board_objects_table, NewEntry),
             broadcast_reservation_expired_to_all_sessions(ReservationId, State#state.board_sessions_table);
-        _ -> ok
+        _ -> ok % not reserved or reserved but not by the session or with the same reservation id
     end,
     {noreply, State};
 handle_info(shutdown, State = #state{shutdown_scheduled = true}) ->
@@ -646,8 +644,8 @@ do_apply_erasing_curves_to_canvas(_ObjectsTable) ->
     % TODO: implement erasing curves
     ok.
 
-insert_object_into_ets_and_database(SupervisorPid, ObjectsTable, ObjectId, ObjectType, Object) ->
-    true = ets:insert(ObjectsTable, {ObjectId, ObjectType, not_reserved, Object}),
+insert_object_into_ets_and_database(SupervisorPid, ObjectsTable, ObjectId, ObjectType, Object, ReservationStatus) ->
+    true = ets:insert(ObjectsTable, {ObjectId, ObjectType, ReservationStatus, Object}),
     insert_object_into_database(SupervisorPid, ObjectId, ObjectType, Object).
 
 delete_object_from_ets_and_database(SupervisorPid, ObjectsTable, ObjectId) ->
@@ -675,6 +673,7 @@ broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, ExceptSessio
     }, ExceptSessionRef, SessionsTable).
 
 broadcast_reservation_cancelled_to_all_sessions(ReservationId, SessionsTable) ->
+    lager:info("Broadcasting reservation ~p cancelled to all sessions", [ReservationId]),
     broadcast_event_to_all_sessions(#event{
         eventType = <<"reservationCancelled">>,
         eventPayload = #reservation_cancelled_payload{
@@ -743,6 +742,24 @@ create_new_session(BoardSessionsTable, BoardSessionTokensTable, WsPid) ->
     true = ets:insert(BoardSessionsTable, {SessionRef, Session}),
     true = ets:insert(BoardSessionTokensTable, {SessionToken, SessionRef}),
     {ok, Session, SessionRef}.
+
+create_new_reservation(CanvasObjectId, ObjectType, Object, SessionRef, State) ->
+    ReservationPeriod = case application:get_env(object_reservation_period) of
+        undefined -> 10000;
+        {ok, Period} -> Period
+    end,
+    ReservationId = utility:new_uuid(),
+    NewReservationStatus = {reserved, ReservationId, SessionRef},
+    NewEntry = {CanvasObjectId, ObjectType, NewReservationStatus, Object},
+    true = ets:insert(State#state.board_objects_table, NewEntry),
+    ExpirationTime = erlang:system_time(millisecond) + ReservationPeriod,
+    {ok, TimerRef} = timer:send_after(ReservationPeriod,
+        {auto_expire_reservation, ReservationId, CanvasObjectId, SessionRef}),
+    true = ets:insert(State#state.reservations_table,
+        {ReservationId, CanvasObjectId, TimerRef}),
+    broadcast_object_reserved_to_all_sessions_except_ref(ReservationId, SessionRef,
+        State#state.board_sessions_table),
+    {reply, {ok, ReservationId, ExpirationTime}, State}.
 
 load_objects_from_database(SupervisorPid, ObjectsTable) ->
     DatabaseServicePid = board_sup:get_board_service_pid(SupervisorPid, board_database_service),

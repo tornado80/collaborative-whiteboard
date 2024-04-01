@@ -8,14 +8,16 @@
     user_sessions_scenario/1,
     large_blobs_uploading_and_downloading_scenario/1,
     database_persistence/1,
-    blobs_database_persistence/1
+    blobs_database_persistence/1,
+    update_scenario/1
 ]).
 
 all() ->
     [
         user_sessions_scenario,
         large_blobs_uploading_and_downloading_scenario,
-        database_persistence, blobs_database_persistence
+        database_persistence, blobs_database_persistence,
+        update_scenario
     ].
 
 init_per_testcase(_TestName, Config) ->
@@ -29,8 +31,7 @@ init_per_testcase(_TestName, Config) ->
 
 end_per_testcase(_TestName, Config) ->
     application:stop(backend),
-    application:stop(gun),
-    Config.
+    application:stop(gun).
 
 user_sessions_scenario(Config) ->
     % create a board
@@ -46,18 +47,18 @@ user_sessions_scenario(Config) ->
     User2Pid = test_utility:create_user("user2", Config, BoardId, TestRunner, new, undefined),
     
     % verify welcome messages and user joined messages
-    #user_state{user_id = User1Id} = test_utility:expect_welcome_user("user1"),
-    #user_state{user_id = User2Id} = test_utility:expect_welcome_user("user2"),
+    #user_state{user_id = User1Id} = test_utility:expect_welcome_user("user1", User1Pid),
+    #user_state{user_id = User2Id} = test_utility:expect_welcome_user("user2", User2Pid),
     
     % create third user
     User3Pid = test_utility:create_user("user3", Config, BoardId, TestRunner, new, undefined),
     
     % wait for welcome message of third user
-    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3"),
+    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3", User3Pid),
     
     % wait for user joined messages of other users and verify it
-    test_utility:expect_user_joined("user1", User3Id),
-    test_utility:expect_user_joined("user2", User3Id),
+    test_utility:expect_user_joined("user1", User1Pid, User3Id),
+    test_utility:expect_user_joined("user2", User2Pid, User3Id),
     
     % verify board
     Board = test_utility:get_board_state(Config, BoardId),
@@ -71,26 +72,24 @@ user_sessions_scenario(Config) ->
     
     User3Pid ! die,
     
-    test_utility:expect_user_left("user1", User3Id),
-    test_utility:expect_user_left("user2", User3Id),
+    test_utility:expect_user_left("user1", User1Pid, User3Id),
+    test_utility:expect_user_left("user2", User2Pid, User3Id),
     
     User3ContinuedPid = test_utility:create_user("user3-continued", Config, BoardId, TestRunner, continue, Token),
     
-    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3-continued"),
+    #user_state{user_id = User3Id, session_token = Token} = test_utility:expect_welcome_user("user3-continued", User3ContinuedPid),
     
-    test_utility:expect_user_joined("user1", User3Id),
-    test_utility:expect_user_joined("user2", User3Id),
+    test_utility:expect_user_joined("user1", User1Pid, User3Id),
+    test_utility:expect_user_joined("user2", User2Pid, User3Id),
     
     User3ContinuedPid ! close_abruptly,
     
-    test_utility:expect_user_left("user1", User3Id),
-    test_utility:expect_user_left("user2", User3Id),
+    test_utility:expect_user_left("user1", User1Pid, User3Id),
+    test_utility:expect_user_left("user2", User2Pid, User3Id),
     
     % close all connections
     User1Pid ! close_ws,
-    User2Pid ! close_ws,
-    
-    [{board_id, BoardId} | Config].
+    User2Pid ! close_ws.
 
 large_blobs_uploading_and_downloading_scenario(Config) ->
     % create a board
@@ -106,9 +105,7 @@ large_blobs_uploading_and_downloading_scenario(Config) ->
     BlobId = test_utility:post_request_to_create_blob(Config, BoardId, Headers, Blob),
     
     % verify blob is created
-    Blob = test_utility:get_blob(Config, BoardId, BlobId),
-    
-    Config.
+    Blob = test_utility:get_blob(Config, BoardId, BlobId).
 
 database_persistence(Config) ->
     % this decreases the inactivity timer to shutdown the board controller faster
@@ -125,7 +122,7 @@ database_persistence(Config) ->
     UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
     
     % verify welcome message
-    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user", UserPid),
     
     % create sticky note
     ProposalId = utility:new_uuid(),
@@ -143,7 +140,7 @@ database_persistence(Config) ->
     })},
     
     % expect board update success
-    CanvasObjectId = test_utility:expect_board_update_succeeded("user", ProposalId),
+    CanvasObjectId = test_utility:expect_board_update_succeeded("user", UserPid, ProposalId),
     
     % close the connection
     UserPid ! close_ws,
@@ -156,9 +153,7 @@ database_persistence(Config) ->
     [] = proplists:get_value(<<"onlineUsers">>, Board), % verifies new board has been
     [Object] = proplists:get_value(<<"canvasObjects">>, Board), % verifies database persistence
     CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
-    0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
-    
-    Config.
+    0 = proplists:get_value(<<"lastUpdateId">>, Board).  % verifies new board has been
 
 blobs_database_persistence(Config) ->
     % this decreases the inactivity timer to shutdown the board controller faster
@@ -175,7 +170,7 @@ blobs_database_persistence(Config) ->
     UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
     
     % verify welcome message
-    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user", UserPid),
     
     % create a blob
     {ok, Blob} = file:read_file(filename:join(proplists:get_value(data_dir, Config), "test.png")),
@@ -204,7 +199,7 @@ blobs_database_persistence(Config) ->
     })},
     
     % expect board update success
-    CanvasObjectId = test_utility:expect_board_update_succeeded("user", ProposalId),
+    CanvasObjectId = test_utility:expect_board_update_succeeded("user", UserPid, ProposalId),
     
     % close the connection
     UserPid ! close_ws,
@@ -223,11 +218,9 @@ blobs_database_persistence(Config) ->
     Blob = test_utility:get_blob(Config, BoardId, BlobId),
     
     % verify blob is deleted
-    test_utility:verify_blob_does_not_exist(Config, BoardId, Blob2Id),
-    
-    Config.
+    test_utility:verify_blob_does_not_exist(Config, BoardId, Blob2Id).
 
-reservation_mechanism(Config) ->
+update_scenario(Config) ->
     % create a board
     BoardId = test_utility:post_request_to_create_board(Config),
     
@@ -238,7 +231,7 @@ reservation_mechanism(Config) ->
     UserPid = test_utility:create_user("user", Config, BoardId, self(), new, undefined),
     
     % verify welcome message
-    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user"),
+    #user_state{user_id = UserId} = test_utility:expect_welcome_user("user", UserPid),
     
     % create sticky note
     ProposalId = utility:new_uuid(),
@@ -256,16 +249,46 @@ reservation_mechanism(Config) ->
     })},
     
     % expect board update success
-    CanvasObjectId = test_utility:expect_board_update_succeeded("user", ProposalId),
+    CanvasObjectId = test_utility:expect_board_update_succeeded("user", UserPid, ProposalId),
+    
+    % reserve object for update
+    ProposalId2 = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"reservationProposed">>,
+        <<"canvasObjectId">> => CanvasObjectId,
+        <<"proposalId">> => ProposalId2
+    })},
+    
+    % expect reservation success
+    ReservationId = test_utility:expect_reservation_succeeded("user", UserPid, ProposalId2),
+    
+    % update sticky note
+    ProposalId3 = utility:new_uuid(),
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"boardUpdateProposed">>,
+        <<"proposalId">> => ProposalId3,
+        <<"update">> => #{
+            <<"canvasObjectType">> => <<"stickyNote">>,
+            <<"operationType">> => <<"update">>,
+            <<"canvasObjectId">> => CanvasObjectId,
+            <<"operation">> => #{
+                <<"canvasObjectOperationType">> => <<"updateStickyNote">>,
+                <<"text">> => <<"Hello, World! Updated!">>
+            }
+        }
+    })},
+    
+    % expect board update success
+    test_utility:expect_board_update_succeeded("user", UserPid, ProposalId3),
+    
+    % release object
+    UserPid ! {send, jsone:encode(#{
+        <<"eventType">> => <<"reservationCancellationRequested">>,
+        <<"reservationId">> => ReservationId
+    })},
+    
+    % expect reservation cancelled
+    test_utility:expect_reservation_cancelled("user", UserPid, ReservationId),
     
     % close the connection
-    UserPid ! close_ws,
-    
-    % verify board
-    Board = test_utility:get_board_state(Config, BoardId),
-    [] = proplists:get_value(<<"onlineUsers">>, Board), % verifies new board has been
-    [Object] = proplists:get_value(<<"canvasObjects">>, Board), % verifies database persistence
-    CanvasObjectId = proplists:get_value(<<"id">>, Object), % verifies database persistence
-    0 = proplists:get_value(<<"lastUpdateId">>, Board),  % verifies new board has been
-    
-    Config.
+    UserPid ! close_ws.

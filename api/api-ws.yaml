@@ -638,6 +638,8 @@ components:
         - $ref: '#/components/schemas/event' 
         - type: object
           properties:
+            eventType:
+              const: reservationCancellationRequested
             reservationId:
               type: string
               format: uuid
@@ -647,6 +649,8 @@ components:
         - $ref: '#/components/schemas/event'
         - type: object
           properties:
+            eventType:
+              const: reservationCancelled
             reservationId:
               type: string
               format: uuid

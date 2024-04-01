@@ -48,6 +48,7 @@ init([]) ->
     boards_table = ets:new(boards_table, [named_table, set]),
     boards_table = dets:to_ets(boards_table, boards_table),
     boards_monitors = ets:new(boards_monitors, [named_table, set]),
+    lager:info("Started boards_manager_service"),
     {ok, #state{}}.
 
 handle_call(create_board, _From, State) ->

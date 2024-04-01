@@ -6,5 +6,6 @@
     stream_ref,
     board_id,
     user_id,
-    session_token
+    session_token,
+    monitor_ref
 }).

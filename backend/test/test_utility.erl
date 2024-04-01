@@ -3,9 +3,10 @@
 -include("test_common.hrl").
 
 -export([post_request_to_create_board/1, verify_board_is_empty/2,
-    create_user/6, expect_welcome_user/1, expect_user_joined/2,
-    expect_user_left/2, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
-    expect_board_update_succeeded/2, verify_blob_does_not_exist/3]).
+    create_user/6, expect_welcome_user/2, expect_user_joined/3,
+    expect_user_left/3, get_board_state/2, post_request_to_create_blob/4, get_blob/3,
+    expect_board_update_succeeded/3, verify_blob_does_not_exist/3,
+    expect_reservation_succeeded/3, expect_reservation_cancelled/3]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -13,12 +14,16 @@ open_connection_with_server(Config) ->
 
 open_ws_connection_with_server(Config, State = #user_state{board_id = BoardId}) ->
     Pid = open_connection_with_server(Config),
+    MonitorRef = erlang:monitor(process, Pid),
     log_user_action(State, "connected to server"),
     StreamRef = gun:ws_upgrade(Pid, <<"/api/ws/boards/", BoardId/binary>>),
     receive
         {gun_upgrade, Pid, StreamRef, [<<"websocket">>], _Headers} ->
             log_user_action(State, "upgraded connection to websocket"),
-            State#user_state{conn_pid = Pid, stream_ref = StreamRef}
+            State#user_state{conn_pid = Pid, stream_ref = StreamRef, monitor_ref = MonitorRef}
+    after 100 ->
+        log_user_action(State, "failed to upgrade connection to websocket"),
+        exit(gun_upgrade_failed)
     end.
 
 post_request_to_create_board(Config) ->
@@ -54,11 +59,12 @@ verify_blob_does_not_exist(Config, BoardId, BlobId) ->
     gun:close(Pid).
 
 log_user_action(State, Action) ->
-    ct:print(io_lib:format("User ~p [~p]: ~p", [State#user_state.test_name, State#user_state.server_name,
+    ct:log(io_lib:format("User ~p [~p]: ~p", [State#user_state.test_name, State#user_state.server_name,
         lists:flatten(Action)])).
 
 create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
-    spawn_link(fun() -> do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) end).
+    {Pid, _Monitor} = spawn_monitor(fun() -> do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) end),
+    Pid.
     
 do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
     State = #user_state{test_name = Name, board_id = BoardId, supervisor = TestRunner},
@@ -82,58 +88,109 @@ do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
     log_user_action(State1, "entered user loop"),
     user_loop(State1, TestRunner).
 
-user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name = TestName}, TestRunner) ->
+user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name = TestName, monitor_ref = MonitorRef}, TestRunner) ->
     NewState = receive
-    {send, Msg} ->
-        gun:ws_send(Pid, StreamRef, {text, Msg}),
-        log_user_action(State, io_lib:format("sent message ~p", [Msg])),
-        State;
-    {gun_ws, Pid, StreamRef, {text, Json}} ->
-        PropList = jsone:decode(Json, [{object_format, proplist}]),
-        log_user_action(State, io_lib:format("received message ~p", [Json])),
-        EventType = proplists:get_value(<<"eventType">>, PropList),
-        case EventType of
-            <<"welcomeUser">> ->
-                State1 = State#user_state{
-                   server_name = proplists:get_value(<<"userName">>, PropList),
-                   user_id = proplists:get_value(<<"userId">>, PropList),
-                   session_token = proplists:get_value(<<"sessionToken">>, PropList)},
-                TestRunner ! {welcome_user, TestName, State1},
-                State1;
-            <<"userJoined">> ->
-                UserId = proplists:get_value(<<"userId">>, PropList),
-                TestRunner ! {user_joined, TestName, UserId},
-                State;
-            <<"userLeft">> ->
-                UserId = proplists:get_value(<<"userId">>, PropList),
-                TestRunner ! {user_left, TestName, UserId},
-                State;
-            <<"boardUpdateSucceeded">> ->
-                Update = proplists:get_value(<<"update">>, PropList),
-                ProposalId = proplists:get_value(<<"proposalId">>, PropList),
-                CanvasObjectType = proplists:get_value(<<"canvasObjectType">>, Update),
-                OperationType = proplists:get_value(<<"operationType">>, Update),
-                CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, Update),
-                Operation = proplists:get_value(<<"operation">>, Update),
-                CanvasObjectOperationType = proplists:get_value(<<"canvasObjectOperationType">>, Operation),
-                TestRunner ! {board_update_succeeded, TestName, ProposalId, CanvasObjectId},
-                State;
-            _ ->
-                TestRunner ! {user_event, TestName, State, EventType, PropList},
-                State
-        end;
-    die ->
-        log_user_action(State, "dying"),
-        exit(Pid, kill),
-        exit(normal);
-    close_abruptly ->
-        log_user_action(State, "abruptly closing connection"),
-        gun:close(Pid),
-        exit(normal);
-    close_ws ->
-        log_user_action(State, "sending close frame"),
-        gun:ws_send(Pid, StreamRef, close),
-        exit(normal)
+        {send, Msg} ->
+            gun:ws_send(Pid, StreamRef, {text, Msg}),
+            log_user_action(State, io_lib:format("sent message ~p", [Msg])),
+            State;
+        {gun_ws, Pid, StreamRef, {text, Json}} ->
+            PropList = jsone:decode(Json, [{object_format, proplist}]),
+            log_user_action(State, io_lib:format("received message ~p", [Json])),
+            EventType = proplists:get_value(<<"eventType">>, PropList),
+            case EventType of
+                <<"welcomeUser">> ->
+                    State1 = State#user_state{
+                       server_name = proplists:get_value(<<"userName">>, PropList),
+                       user_id = proplists:get_value(<<"userId">>, PropList),
+                       session_token = proplists:get_value(<<"sessionToken">>, PropList)},
+                    TestRunner ! {welcome_user, TestName, State1},
+                    State1;
+                <<"userJoined">> ->
+                    UserId = proplists:get_value(<<"userId">>, PropList),
+                    TestRunner ! {user_joined, TestName, UserId},
+                    State;
+                <<"userLeft">> ->
+                    UserId = proplists:get_value(<<"userId">>, PropList),
+                    TestRunner ! {user_left, TestName, UserId},
+                    State;
+                <<"boardUpdateSucceeded">> ->
+                    Update = proplists:get_value(<<"update">>, PropList),
+                    ProposalId = proplists:get_value(<<"proposalId">>, PropList),
+                    UpdateId = proplists:get_value(<<"updateId">>, PropList),
+                    CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, Update),
+                    TestRunner ! {board_update_succeeded, TestName, ProposalId, CanvasObjectId, UpdateId},
+                    State;
+                <<"boardUpdateFailed">> ->
+                    ProposalId = proplists:get_value(<<"proposalId">>, PropList),
+                    ErrorMessage = proplists:get_value(<<"errorMessage">>, PropList),
+                    TestRunner ! {board_update_failed, TestName, ProposalId, ErrorMessage},
+                    State;
+                <<"boardUpdated">> ->
+                    Update = proplists:get_value(<<"update">>, PropList),
+                    UpdateId = proplists:get_value(<<"updateId">>, PropList),
+                    UserId = proplists:get_value(<<"userId">>, PropList),
+                    CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, Update),
+                    CanvasObjectType = proplists:get_value(<<"canvasObjectType">>, Update),
+                    OperationType = proplists:get_value(<<"operationType">>, Update),
+                    Operation = proplists:get_value(<<"operation">>, Update),
+                    _CanvasObjectOperationType = proplists:get_value(<<"canvasObjectOperationType">>, Operation),
+                    TestRunner ! {board_updated, TestName, UpdateId, UserId, CanvasObjectId, CanvasObjectType, OperationType},
+                    State;
+                <<"reservationProposalSucceeded">> ->
+                    ProposalId = proplists:get_value(<<"proposalId">>, PropList),
+                    ReservationId = proplists:get_value(<<"reservationId">>, PropList),
+                    ExpirationTimestamp = proplists:get_value(<<"expirationTimestamp">>, PropList),
+                    TestRunner ! {reservation_succeeded, TestName, ProposalId, ReservationId, ExpirationTimestamp},
+                    State;
+                <<"reservationCancelled">> ->
+                    ReservationId = proplists:get_value(<<"reservationId">>, PropList),
+                    TestRunner ! {reservation_cancelled, TestName, ReservationId},
+                    State;
+                <<"reservationExpired">> ->
+                    ReservationId = proplists:get_value(<<"reservationId">>, PropList),
+                    TestRunner ! {reservation_expired, TestName, ReservationId},
+                    State;
+                <<"reservationProposalFailed">> ->
+                    ProposalId = proplists:get_value(<<"proposalId">>, PropList),
+                    ErrorMessage = proplists:get_value(<<"errorMessage">>, PropList),
+                    TestRunner ! {reservation_failed, TestName, ProposalId, ErrorMessage},
+                    State;
+                <<"canvasObjectReserved">> ->
+                    CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, PropList),
+                    ReservationId = proplists:get_value(<<"reservationId">>, PropList),
+                    ExpirationTimestamp = proplists:get_value(<<"expirationTimestamp">>, PropList),
+                    UserId = proplists:get_value(<<"userId">>, PropList),
+                    TestRunner ! {canvas_object_reserved, TestName, CanvasObjectId, ReservationId, ExpirationTimestamp, UserId},
+                    State;
+                _ ->
+                    TestRunner ! {unknown_event, TestName, State, EventType, PropList},
+                    State
+            end;
+        {gun_down, Pid, ws, Reason, [StreamRef]} ->
+            log_user_action(State, io_lib:format("connection down: ~p", [Reason])),
+            exit(connection_down);
+        {gun_error, Pid, StreamRef, Reason} ->
+            log_user_action(State, io_lib:format("stream error: ~p", [Reason])),
+            exit(stream_error);
+        {gun_error, Pid, Reason} ->
+            log_user_action(State, io_lib:format("connection error: ~p", [Reason])),
+            exit(connection_error);
+        {'DOWN', MonitorRef, process, Pid, Reason} ->
+            log_user_action(State, io_lib:format("gun crashed: ~p", [Reason])),
+            exit(gun_crashed);
+        die ->
+            log_user_action(State, "dying"),
+            exit(Pid, kill),
+            exit(died);
+        close_abruptly ->
+            log_user_action(State, "abruptly closing connection"),
+            gun:close(Pid),
+            exit(closed_abruptly);
+        close_ws ->
+            log_user_action(State, "sending close frame"),
+            gun:ws_send(Pid, StreamRef, close),
+            exit(normal)
     end,
     user_loop(NewState, TestRunner).
 
@@ -153,22 +210,50 @@ verify_board_is_empty(Config, BoardId) ->
     BoardId = proplists:get_value(<<"id">>, Board),
     [] = proplists:get_value(<<"onlineUsers">>, Board).
 
-expect_welcome_user(TestUserName) ->
+expect_welcome_user(TestUserName, TestUserPid) ->
     receive
-        {welcome_user, TestUserName, State} -> State
+        {welcome_user, TestUserName, State} -> State;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, Reason})
+    after
+        100 -> exit(welcome_user_not_received)
     end.
 
-expect_user_joined(TestUserName, JoinedUserId) ->
+expect_user_joined(TestUserName, TestUserPid, JoinedUserId) ->
     receive
-        {user_joined, TestUserName, JoinedUserId} -> ok
+        {user_joined, TestUserName, JoinedUserId} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(user_joined_not_received)
     end.
 
-expect_user_left(TestUserName, LeftUserId) ->
+expect_user_left(TestUserName, TestUserPid, LeftUserId) ->
     receive
-        {user_left, TestUserName, LeftUserId} -> ok
+        {user_left, TestUserName, LeftUserId} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(user_left_not_received)
     end.
 
-expect_board_update_succeeded(TestUserName, ProposalId) ->
+expect_board_update_succeeded(TestUserName, TestUserPid, ProposalId) ->
     receive
-        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId} -> CanvasObjectId
+        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId, _UpdateId} -> CanvasObjectId;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(board_update_succeeded_not_received)
+    end.
+
+expect_reservation_succeeded(TestUserName, TestUserPid, ProposalId) ->
+    receive
+        {reservation_succeeded, TestUserName, ProposalId, ReservationId, _ExpirationTimestamp} -> ReservationId;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(reservation_succeeded_not_received)
+    end.
+
+expect_reservation_cancelled(TestUserName, TestUserPid, ReservationId) ->
+    receive
+        {reservation_cancelled, TestUserName, ReservationId} -> ok;
+        {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
+    after
+        100 -> exit(reservation_cancelled_not_received)
     end.
