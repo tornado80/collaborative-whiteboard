@@ -13,13 +13,13 @@ json_to_event(Json) ->
         {ok, PropList, _RemainingJson} ->
             proplist_to_event(PropList);
         {error, _} -> 
-            {error, <<"Invalid JSON">>}
+            {error, 4005, <<"invalid json">>}
     end.
 
 proplist_to_event(PropList) ->
     case proplists:get_value(<<"eventType">>, PropList) of
         undefined -> 
-            {error, <<"eventType is not provided">>};
+            {error, 4006, <<"eventType is not provided">>};
         EventType ->
             proplist_to_event(EventType, PropList)
     end.
@@ -73,7 +73,8 @@ proplist_to_event(<<"redoRequested">>, _PropList) ->
         eventPayload = undefined
     }};
 proplist_to_event(EventType, _) ->
-    {error, io_lib:format(<<"unexpected eventType ~p">>, [EventType])}.
+    lager:error("unexpected eventType ~p", [EventType]),
+    {error, 4007, <<"unexpected eventType">>}.
 
 proplist_to_update_payload(PropList) ->
     #update_payload{

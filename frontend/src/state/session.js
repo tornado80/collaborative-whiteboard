@@ -22,9 +22,10 @@ export class Session {
         this._state_obj = state
         this._updateState = update
         this._boardId = extractBoardIdFromPath()
-        this._eventId = 1
         this._ready = false
         this._eventBuf = []
+        this._sessionToken = null
+        this._lastAppliedUpdate = 0
 
         this._updateState({
             reservations: [],
@@ -34,6 +35,10 @@ export class Session {
             user: {},
         })
 
+        this._openWebSocketConnection()
+    }
+
+    _openWebSocketConnection() {
         // Open WebSocket Session, receive should handle here
         this._ws = new WebSocket(wsPathOnsameHost(`/api/ws/boards/${this._boardId}`))
 
@@ -59,10 +64,30 @@ export class Session {
         }
 
         this._ws.onopen = () => {
-            this.sendEvent({
-                eventType: "begin",
-                sessionType: "new"
-            })
+            if (this._sessionToken == null) {
+                this.sendEvent({
+                    eventType: "begin",
+                    sessionType: "new"
+                })
+            } else {
+                this.sendEvent({
+                    eventType: "begin",
+                    sessionType: "continue",
+                    sessionToken: this._sessionToken
+                })
+            }
+        }
+
+        this._ws.onclose = (event) => {
+            this._ready = false
+            this._lastAppliedUpdate = 0
+            this._eventBuf = []
+            this._openWebSocketConnection()
+            console.log("WebSocket connection closed", event)
+        }
+
+        this._ws.onerror = (event) => {
+            console.error("WebSocket error: ", event)
         }
     }
 
@@ -123,6 +148,15 @@ export class Session {
                     return
                 }
 
+                console.log("lastAppliedUpdate: ", this._lastAppliedUpdate, "eventData.updateId: ", eventData.updateId)
+                /*
+                if (this._lastAppliedUpdate + 1 !== eventData.updateId) {
+                    this._ready = false
+                    this._fetchInitialState()
+                    return
+                }
+                */
+
                 this._lastAppliedUpdate = eventData.updateId
 
                 if (eventData.update.operationType === "delete") {
@@ -168,10 +202,6 @@ export class Session {
                     ...this._state,
                     reservations: [...this._state.reservations.filter(r => r.proposalId !== eventData.proposalId)]
                 }
-
-            case "boardUpdateFailed":
-                alert("Failed to update object")
-                break
                 
             default:
                 console.error("Unknown eventType ", eventData.eventType)
@@ -189,7 +219,7 @@ export class Session {
         if (this._ws.readyState === WebSocket.OPEN) {
             this._ws.send(JSON.stringify(payload));
         } else {
-            console.error('WebSocket connection is not open.');
+            console.error('WebSocket connection is not open when sending message.');
         }
     }
 
@@ -208,7 +238,7 @@ export class Session {
             req.open("POST", `/api/rest/boards/${this._boardId}/blobs`, true);
 
             req.onreadystatechange = () => {
-                if (req.readyState == XMLHttpRequest.DONE) {
+                if (req.readyState === XMLHttpRequest.DONE) {
                     const json = JSON.parse(req.responseText)
                     console.log(json)
                     resolve(json.blobId)
@@ -230,7 +260,7 @@ export class Session {
             const data = res.data
 
             // TODO: Initialize last applied update
-            this._lastAppliedUpdate = data.lastAppliedUpdate
+            this._lastAppliedUpdate = data.lastUpdateId
 
             this._updateState(
                 this._eventBuf.reduce(

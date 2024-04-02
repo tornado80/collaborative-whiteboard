@@ -47,14 +47,14 @@ websocket_handle(_Frame = {text, Json}, State) ->
     case websocket_event_parser:json_to_event(Json) of
         {ok, Event} -> 
             websocket_event_handlers:handle_event(Event, State);
-        {error, Reason} -> 
+        {error, Code, Reason} ->
             lager:error(Reason),
-            {[{close, Reason}], State}
+            {[{close, Code, Reason}], State}
     end;
 websocket_handle(_Frame = {binary, _Data}, State) ->
     Reason = <<"this endpoint does not accept binary stream">>,
     lager:error(Reason),
-    {[{close, Reason}], State};
+    {[{close, 4001, Reason}], State};
 websocket_handle(Frame, State) ->
     lager:info("Websocket handler ~p received unknown frame: ~p", [self(), Frame]),
     {[{active, true}], State}.
@@ -65,7 +65,7 @@ websocket_info({broadcast, Event}, State) ->
     {[{text, Json}], State};
 websocket_info({'DOWN', Ref, process, Pid, _Reason}, State = #websocket_handler_state{boardControllerRef = Ref}) ->
     lager:info("Board controller ~p is down", [Pid]),
-    {[{close, <<"board controller is down">>}], State#websocket_handler_state{
+    {[{close, 4000, <<"board controller is down">>}], State#websocket_handler_state{
         boardControllerPid = undefined, boardControllerRef = undefined}};
 websocket_info(_ErlangMsg, State) ->
     {[{active, true}], State}.
