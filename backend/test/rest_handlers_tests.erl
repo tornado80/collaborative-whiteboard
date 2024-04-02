@@ -15,7 +15,8 @@ create_board_handler_test() ->
     {ok, _} = application:ensure_all_started(gun),
 
     % Act
-    {ok, Pid} = gun:open("localhost", 8080),
+    {ok, Pid} = gun:open("localhost", 8080, #{protocols => [http2]}),
+    ?assertEqual(http2, maps:get(protocol, gun:info(Pid))),
     StreamRef = gun:post(Pid, "/api/rest/boards", []),
     Response = gun:await(Pid, StreamRef),
 
