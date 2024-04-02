@@ -22,10 +22,10 @@ export class Session {
         this._state_obj = state
         this._updateState = update
         this._boardId = extractBoardIdFromPath()
-        this._eventId = 1
         this._ready = false
         this._eventBuf = []
         this._sessionToken = null
+        this._lastAppliedUpdate = 0
 
         this._updateState({
             reservations: [],
@@ -80,6 +80,7 @@ export class Session {
 
         this._ws.onclose = (event) => {
             this._ready = false
+            this._lastAppliedUpdate = 0
             this._eventBuf = []
             this._openWebSocketConnection()
             console.log("WebSocket connection closed", event)
@@ -147,11 +148,14 @@ export class Session {
                     return
                 }
 
+                console.log("lastAppliedUpdate: ", this._lastAppliedUpdate, "eventData.updateId: ", eventData.updateId)
+                /*
                 if (this._lastAppliedUpdate + 1 !== eventData.updateId) {
                     this._ready = false
                     this._fetchInitialState()
                     return
                 }
+                */
 
                 this._lastAppliedUpdate = eventData.updateId
 
@@ -256,7 +260,7 @@ export class Session {
             const data = res.data
 
             // TODO: Initialize last applied update
-            this._lastAppliedUpdate = data.lastAppliedUpdate
+            this._lastAppliedUpdate = data.lastUpdateId
 
             this._updateState(
                 this._eventBuf.reduce(
