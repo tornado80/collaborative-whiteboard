@@ -621,7 +621,7 @@ benchmark2(Config) ->
         end,
         Users
     ),
-    
+    timer:sleep(50),
     lists:foreach(
         fun(K) ->
             % update board
