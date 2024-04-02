@@ -7,7 +7,7 @@ so don't forget to expose the port. The other option is to install Erlang and Re
 need to have Erlang/OTP 25 and Rebar3 installed. You can get Erlang/OTP binaries 
 from the [Erlang Solutions website](https://www.erlang-solutions.com/resources/download.html) or 
 use [kerl](https://github.com/kerl/kerl) to build it from source. 
-(Useful information can be found in [Elixir Installation Help](https://elixir-lang.org/install.html) and 
+(Useful information can be found in [Erlang/OTP official website downloads page](https://www.erlang.org/downloads), [Elixir Installation Help](https://elixir-lang.org/install.html) and 
 [AdoptingErlang](https://adoptingerlang.org/docs/development/setup/#installing-erlang-otp).) 
 You can install Rebar3 by following the instructions on 
 the [Rebar3 website](https://www.rebar3.org/docs/getting-started).
