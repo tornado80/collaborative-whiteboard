@@ -73,7 +73,7 @@ proplist_to_event(<<"redoRequested">>, _PropList) ->
         eventPayload = undefined
     }};
 proplist_to_event(EventType, _) ->
-    {error, io_lib:format(<<"unexpected eventType">>, [EventType])}.
+    {error, io_lib:format(<<"unexpected eventType ~p">>, [EventType])}.
 
 proplist_to_update_payload(PropList) ->
     #update_payload{

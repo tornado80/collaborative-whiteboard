@@ -290,7 +290,7 @@ export class Session {
                 }
 
                 this.sendEvent({
-                    eventType: "reservationCancelled",
+                    eventType: "reservationCancellationRequested",
                     reservationId: reservation.reservationId,
                 })
 
