@@ -8,7 +8,10 @@
     expect_board_update_succeeded/3, verify_blob_does_not_exist/3,
     expect_reservation_succeeded/3, expect_reservation_cancelled/3,
     expect_board_updated/5, expect_canvas_object_reserved/5, expect_reservation_expired/3,
-    expect_board_update_failed/3, expect_reservation_failed/3]).
+    expect_board_update_failed/3, expect_reservation_failed/3, send_msg_to_user/2,
+    expect_board_update_succeeded_and_received_time/4,
+    expect_board_updated_and_received_time/6,
+    expect_welcome_user_with_timeout/3]).
 
 open_connection_with_server(Config) ->
     {ok, Pid} = gun:open(proplists:get_value(host, Config), proplists:get_value(port, Config)),
@@ -69,7 +72,7 @@ create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
     Pid.
     
 do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
-    State = #user_state{test_name = Name, board_id = BoardId, supervisor = TestRunner},
+    State = #user_state{test_name = Name, board_id = BoardId, test_runner = TestRunner},
     log_user_action(State, "created"),
     State1 = open_ws_connection_with_server(Config, State),
     BeginMessage = case SessionType of
@@ -88,15 +91,24 @@ do_create_user(Name, Config, BoardId, TestRunner, SessionType, SessionToken) ->
     gun:ws_send(State1#user_state.conn_pid, State1#user_state.stream_ref, {text, BeginMessage}),
     log_user_action(State1, "sent begin message"),
     log_user_action(State1, "entered user loop"),
-    user_loop(State1, TestRunner).
+    user_loop(State1).
 
-user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name = TestName, monitor_ref = MonitorRef}, TestRunner) ->
+user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name = TestName, monitor_ref = MonitorRef, test_runner = TestRunner}) ->
     NewState = receive
         {send, Msg} ->
             gun:ws_send(Pid, StreamRef, {text, Msg}),
             log_user_action(State, io_lib:format("sent message ~p", [Msg])),
             State;
+        {send, Msg, From, Ref} ->
+            SentTime = os:system_time(millisecond),
+            gun:ws_send(Pid, StreamRef, {text, Msg}),
+            From ! {sent, Ref, SentTime},
+            log_user_action(State, io_lib:format("sent message ~p", [Msg])),
+            State;
+        {set_test_runner, NewTestRunner} ->
+            State#user_state{test_runner = NewTestRunner};
         {gun_ws, Pid, StreamRef, {text, Json}} ->
+            When = os:system_time(millisecond),
             PropList = jsone:decode(Json, [{object_format, proplist}]),
             log_user_action(State, io_lib:format("received message ~p", [Json])),
             EventType = proplists:get_value(<<"eventType">>, PropList),
@@ -106,27 +118,27 @@ user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name 
                        server_name = proplists:get_value(<<"userName">>, PropList),
                        user_id = proplists:get_value(<<"userId">>, PropList),
                        session_token = proplists:get_value(<<"sessionToken">>, PropList)},
-                    TestRunner ! {welcome_user, TestName, State1},
+                    TestRunner ! {welcome_user, TestName, State1, When},
                     State1;
                 <<"userJoined">> ->
                     UserId = proplists:get_value(<<"userId">>, PropList),
-                    TestRunner ! {user_joined, TestName, UserId},
+                    TestRunner ! {user_joined, TestName, UserId, When},
                     State;
                 <<"userLeft">> ->
                     UserId = proplists:get_value(<<"userId">>, PropList),
-                    TestRunner ! {user_left, TestName, UserId},
+                    TestRunner ! {user_left, TestName, UserId, When},
                     State;
                 <<"boardUpdateSucceeded">> ->
                     Update = proplists:get_value(<<"update">>, PropList),
                     ProposalId = proplists:get_value(<<"proposalId">>, PropList),
                     UpdateId = proplists:get_value(<<"updateId">>, PropList),
                     CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, Update),
-                    TestRunner ! {board_update_succeeded, TestName, ProposalId, CanvasObjectId, UpdateId},
+                    TestRunner ! {board_update_succeeded, TestName, ProposalId, CanvasObjectId, UpdateId, When},
                     State;
                 <<"boardUpdateFailed">> ->
                     ProposalId = proplists:get_value(<<"proposalId">>, PropList),
                     ErrorMessage = proplists:get_value(<<"errorMessage">>, PropList),
-                    TestRunner ! {board_update_failed, TestName, ProposalId, ErrorMessage},
+                    TestRunner ! {board_update_failed, TestName, ProposalId, ErrorMessage, When},
                     State;
                 <<"boardUpdated">> ->
                     Update = proplists:get_value(<<"update">>, PropList),
@@ -136,36 +148,36 @@ user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name 
                     CanvasObjectType = proplists:get_value(<<"canvasObjectType">>, Update),
                     OperationType = proplists:get_value(<<"operationType">>, Update),
                     Operation = proplists:get_value(<<"operation">>, Update),
-                    TestRunner ! {board_updated, TestName, UpdateId, UserId, CanvasObjectId, CanvasObjectType, OperationType, Operation},
+                    TestRunner ! {board_updated, TestName, UpdateId, UserId, CanvasObjectId, CanvasObjectType, OperationType, Operation, When},
                     State;
                 <<"reservationProposalSucceeded">> ->
                     ProposalId = proplists:get_value(<<"proposalId">>, PropList),
                     ReservationId = proplists:get_value(<<"reservationId">>, PropList),
                     ExpirationTimestamp = proplists:get_value(<<"expirationTimestamp">>, PropList),
-                    TestRunner ! {reservation_succeeded, TestName, ProposalId, ReservationId, ExpirationTimestamp},
+                    TestRunner ! {reservation_succeeded, TestName, ProposalId, ReservationId, ExpirationTimestamp, When},
                     State;
                 <<"reservationCancelled">> ->
                     ReservationId = proplists:get_value(<<"reservationId">>, PropList),
-                    TestRunner ! {reservation_cancelled, TestName, ReservationId},
+                    TestRunner ! {reservation_cancelled, TestName, ReservationId, When},
                     State;
                 <<"reservationExpired">> ->
                     ReservationId = proplists:get_value(<<"reservationId">>, PropList),
-                    TestRunner ! {reservation_expired, TestName, ReservationId},
+                    TestRunner ! {reservation_expired, TestName, ReservationId, When},
                     State;
                 <<"reservationProposalFailed">> ->
                     ProposalId = proplists:get_value(<<"proposalId">>, PropList),
                     ErrorMessage = proplists:get_value(<<"errorMessage">>, PropList),
-                    TestRunner ! {reservation_failed, TestName, ProposalId, ErrorMessage},
+                    TestRunner ! {reservation_failed, TestName, ProposalId, ErrorMessage, When},
                     State;
                 <<"canvasObjectReserved">> ->
                     CanvasObjectId = proplists:get_value(<<"canvasObjectId">>, PropList),
                     ReservationId = proplists:get_value(<<"reservationId">>, PropList),
                     ExpirationTimestamp = proplists:get_value(<<"expirationTimestamp">>, PropList),
                     UserId = proplists:get_value(<<"userId">>, PropList),
-                    TestRunner ! {canvas_object_reserved, TestName, CanvasObjectId, ReservationId, ExpirationTimestamp, UserId},
+                    TestRunner ! {canvas_object_reserved, TestName, CanvasObjectId, ReservationId, ExpirationTimestamp, UserId, When},
                     State;
                 _ ->
-                    TestRunner ! {unknown_event, TestName, State, EventType, PropList},
+                    TestRunner ! {unknown_event, TestName, State, EventType, PropList, When},
                     State
             end;
         {gun_down, Pid, ws, Reason, [StreamRef]} ->
@@ -193,7 +205,12 @@ user_loop(State = #user_state{conn_pid = Pid, stream_ref = StreamRef, test_name 
             gun:ws_send(Pid, StreamRef, close),
             exit(normal)
     end,
-    user_loop(NewState, TestRunner).
+    user_loop(NewState).
+
+send_msg_to_user(Pid, Msg) ->
+    Ref = erlang:make_ref(),
+    Pid ! {send, Msg, self(), Ref},
+    receive {sent, Ref, SentTime} -> SentTime end.
 
 get_board_state(Config, BoardId) ->
     Pid = open_connection_with_server(Config),
@@ -211,17 +228,20 @@ verify_board_is_empty(Config, BoardId) ->
     BoardId = proplists:get_value(<<"id">>, Board),
     [] = proplists:get_value(<<"onlineUsers">>, Board).
 
-expect_welcome_user(TestUserName, TestUserPid) ->
+expect_welcome_user_with_timeout(TestUserName, TestUserPid, Timeout) ->
     receive
-        {welcome_user, TestUserName, State} -> State;
+        {welcome_user, TestUserName, State, _When} -> State;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, Reason})
     after
-        100 -> exit(welcome_user_not_received)
+        Timeout -> exit(welcome_user_not_received)
     end.
+
+expect_welcome_user(TestUserName, TestUserPid) ->
+    expect_welcome_user_with_timeout(TestUserName, TestUserPid, 100).
 
 expect_user_joined(TestUserName, TestUserPid, JoinedUserId) ->
     receive
-        {user_joined, TestUserName, JoinedUserId} -> ok;
+        {user_joined, TestUserName, JoinedUserId, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(user_joined_not_received)
@@ -229,23 +249,27 @@ expect_user_joined(TestUserName, TestUserPid, JoinedUserId) ->
 
 expect_user_left(TestUserName, TestUserPid, LeftUserId) ->
     receive
-        {user_left, TestUserName, LeftUserId} -> ok;
+        {user_left, TestUserName, LeftUserId, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(user_left_not_received)
     end.
 
-expect_board_update_succeeded(TestUserName, TestUserPid, ProposalId) ->
+expect_board_update_succeeded_and_received_time(TestUserName, TestUserPid, ProposalId, Timeout) ->
     receive
-        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId, UpdateId} -> {CanvasObjectId, UpdateId};
+        {board_update_succeeded, TestUserName, ProposalId, CanvasObjectId, UpdateId, When} -> {CanvasObjectId, UpdateId, When};
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
-        100 -> exit(board_update_succeeded_not_received)
+        Timeout -> exit(board_update_succeeded_not_received)
     end.
+
+expect_board_update_succeeded(TestUserName, TestUserPid, ProposalId) ->
+    {CanvasObjectId, UpdateId, _When} = expect_board_update_succeeded_and_received_time(TestUserName, TestUserPid, ProposalId, 100),
+    {CanvasObjectId, UpdateId}.
 
 expect_reservation_succeeded(TestUserName, TestUserPid, ProposalId) ->
     receive
-        {reservation_succeeded, TestUserName, ProposalId, ReservationId, _ExpirationTimestamp} -> ReservationId;
+        {reservation_succeeded, TestUserName, ProposalId, ReservationId, _ExpirationTimestamp, _When} -> ReservationId;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_succeeded_not_received)
@@ -253,24 +277,27 @@ expect_reservation_succeeded(TestUserName, TestUserPid, ProposalId) ->
 
 expect_reservation_cancelled(TestUserName, TestUserPid, ReservationId) ->
     receive
-        {reservation_cancelled, TestUserName, ReservationId} -> ok;
+        {reservation_cancelled, TestUserName, ReservationId, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_cancelled_not_received)
     end.
 
-expect_board_updated(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId) ->
+expect_board_updated_and_received_time(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId, Timeout) ->
     receive
-        {board_updated, TestUserName, UpdateId, UserId, CanvasObjectId, _CanvasObjectType, OperationType, Operation} ->
-            {OperationType, Operation};
+        {board_updated, TestUserName, UpdateId, UserId, CanvasObjectId, _CanvasObjectType, OperationType, Operation, When} -> {OperationType, Operation, When};
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
-        100 -> exit(board_updated_not_received)
+        Timeout -> exit(board_updated_not_received)
     end.
+
+expect_board_updated(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId) ->
+    {OperationType, Operation, When} = expect_board_updated_and_received_time(TestUserName, TestUserPid, UpdateId, UserId, CanvasObjectId, 100),
+    {OperationType, Operation}.
 
 expect_canvas_object_reserved(TestUserName, TestUserPid, CanvasObjectId, ReservationId, UserId) ->
     receive
-        {canvas_object_reserved, TestUserName, CanvasObjectId, ReservationId, _ExpirationTimestamp, UserId} -> ok;
+        {canvas_object_reserved, TestUserName, CanvasObjectId, ReservationId, _ExpirationTimestamp, UserId, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(canvas_object_reserved_not_received)
@@ -278,7 +305,7 @@ expect_canvas_object_reserved(TestUserName, TestUserPid, CanvasObjectId, Reserva
 
 expect_reservation_expired(TestUserName, TestUserPid, ReservationId) ->
     receive
-        {reservation_expired, TestUserName, ReservationId} -> ok;
+        {reservation_expired, TestUserName, ReservationId, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_expired_not_received)
@@ -286,7 +313,7 @@ expect_reservation_expired(TestUserName, TestUserPid, ReservationId) ->
 
 expect_reservation_failed(TestUserName, TestUserPid, ProposalId) ->
     receive
-        {reservation_failed, TestUserName, ProposalId, _ErrorMessage} -> ok;
+        {reservation_failed, TestUserName, ProposalId, _ErrorMessage, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(reservation_failed_not_received)
@@ -294,7 +321,7 @@ expect_reservation_failed(TestUserName, TestUserPid, ProposalId) ->
 
 expect_board_update_failed(TestUserName, TestUserPid, ProposalId) ->
     receive
-        {board_update_failed, TestUserName, ProposalId, _ErrorMessage} -> ok;
+        {board_update_failed, TestUserName, ProposalId, _ErrorMessage, _When} -> ok;
         {'DOWN', _, process, TestUserPid, Reason} -> exit({user_down, TestUserName, Reason})
     after
         100 -> exit(board_update_failed_not_received)

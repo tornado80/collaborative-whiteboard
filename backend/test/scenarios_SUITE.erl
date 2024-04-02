@@ -11,7 +11,9 @@
     blobs_database_persistence/1,
     update_sticky_note_scenario/1,
     extend_reservation/1,
-    undo_redo_scenario/1
+    undo_redo_scenario/1,
+    benchmark1/1,
+    benchmark2/1
 ]).
 
 all() ->
@@ -21,7 +23,9 @@ all() ->
         database_persistence, blobs_database_persistence,
         update_sticky_note_scenario,
         extend_reservation,
-        undo_redo_scenario
+        undo_redo_scenario,
+        benchmark1,
+        benchmark2
     ].
 
 init_per_testcase(_TestName, Config) ->
@@ -504,3 +508,164 @@ undo_redo_scenario(Config) ->
     <<"Hello, World! Updated!">> = proplists:get_value(<<"text">>, Operation2),
     
     UserPid ! ws_close.
+
+drawer(TestName, Pid, TestRunner) ->
+    Delays = lists:foldl(
+        fun (K, Accu) ->
+            ProposalId = utility:new_uuid(),
+            Msg = jsone:encode(#{
+                <<"eventType">> => <<"boardUpdateProposed">>,
+                <<"proposalId">> => ProposalId,
+                <<"update">> => #{
+                    <<"canvasObjectType">> => <<"canvas">>,
+                    <<"operationType">> => <<"draw">>,
+                    <<"operation">> => #{
+                        <<"canvasObjectOperationType">> => <<"draw">>,
+                        <<"points">> => [
+                            #{
+                                <<"x">> => random:uniform(800),
+                                <<"y">> => random:uniform(800)
+                            },
+                            #{
+                                <<"x">> => random:uniform(800),
+                                <<"y">> => random:uniform(800)
+                            }
+                        ]
+                    }
+                }
+            }),
+            SentTime = test_utility:send_msg_to_user(Pid, Msg),
+            {_, _, ReceivedTime} = test_utility:expect_board_update_succeeded_and_received_time(TestName, Pid, ProposalId, 200),
+            Delay = ReceivedTime - SentTime,
+            [Delay | Accu]
+        end,
+        [],
+        lists:seq(1, 50)
+    ),
+    Pid ! {set_test_runner, TestRunner},
+    TestRunner ! {drawer_delays, TestName, Delays}.
+
+benchmark1(Config) ->
+    % create a board
+    BoardId = test_utility:post_request_to_create_board(Config),
+    
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    % create 10 users
+    Users = lists:foldl(
+        fun(N, Accu) ->
+            [{N, test_utility:create_user(N, Config, BoardId, self(), new, undefined)} | Accu]
+        end,
+        [],
+        lists:seq(1, 10)
+    ),
+    
+    TestRunner = self(),
+    
+    % expect welcome messages
+    Drawers = lists:foldl(
+        fun({N, Pid}, Accu) ->
+            test_utility:expect_welcome_user(N, Pid),
+            NewTestRunner = spawn_link(fun () -> drawer(N, Pid, TestRunner) end),
+            Pid ! {set_test_runner, NewTestRunner},
+            [{N, NewTestRunner} | Accu]
+        end,
+        [],
+        Users
+    ),
+    
+    % expect drawer delays
+    lists:foreach(
+        fun({N, Pid}) ->
+            receive
+                {drawer_delays, N, Delays} ->
+                    Avg = lists:sum(Delays) / length(Delays),
+                    file:write_file("benchmark1_results", io_lib:format("~p: ~w, Avg: ~p~n", [N, Delays, Avg]), [append])
+            end
+        end,
+        Drawers
+    ),
+    
+    % close all connections
+    lists:foreach(
+        fun({_, Pid}) ->
+            Pid ! close_ws
+        end,
+        Users
+    ).
+
+benchmark2(Config) ->
+    % create a board
+    BoardId = test_utility:post_request_to_create_board(Config),
+    
+    % verify board is empty
+    test_utility:verify_board_is_empty(Config, BoardId),
+    
+    User1 = test_utility:create_user("user1", Config, BoardId, self(), new, undefined),
+    #user_state{user_id = User1Id} = test_utility:expect_welcome_user("user1", User1),
+    
+    % create 30 users
+    Users = lists:foldl(
+        fun(N, Accu) ->
+            [{N, test_utility:create_user(N, Config, BoardId, self(), new, undefined)} | Accu]
+        end,
+        [],
+        lists:seq(1, 30)
+    ),
+    
+    % expect welcome messages
+    lists:foreach(
+        fun({N, Pid}) ->
+            test_utility:expect_welcome_user_with_timeout(N, Pid, 500)
+        end,
+        Users
+    ),
+    
+    lists:foreach(
+        fun(K) ->
+            % update board
+            ProposalId = utility:new_uuid(),
+            SentTime = test_utility:send_msg_to_user(User1, jsone:encode(#{
+                <<"eventType">> => <<"boardUpdateProposed">>,
+                <<"proposalId">> => ProposalId,
+                <<"update">> => #{
+                    <<"canvasObjectType">> => <<"stickyNote">>,
+                    <<"operationType">> => <<"create">>,
+                    <<"operation">> => #{
+                        <<"canvasObjectOperationType">> => <<"createStickyNote">>,
+                        <<"text">> => <<"Hello, World!">>
+                    }
+                }
+            })),
+            
+            % expect board update success
+            {CanvasObjectId, UpdatedId, SuccessReceivedTime} = test_utility:expect_board_update_succeeded_and_received_time("user1", User1, ProposalId, 500),
+            
+            file:write_file("benchmark2_results", io_lib:format("Run ~p, Success Delay: ~p~n", [K, SuccessReceivedTime - SentTime]), [append]),
+            
+            % expect other users to see the update
+            Delays = lists:foldl(
+                fun({N, Pid}, Acc) ->
+                    {_, _, ReceivedTime} = test_utility:expect_board_updated_and_received_time(N, Pid, UpdatedId, User1Id, CanvasObjectId, 500),
+                    Delay = ReceivedTime - SentTime,
+                    [Delay | Acc]
+                end,
+                [],
+                Users
+            ),
+            Avg = lists:sum(Delays) / length(Delays),
+            file:write_file("benchmark2_results", io_lib:format("Run ~p: ~w, Avg: ~p~n", [K, Delays, Avg]), [append])
+        end,
+        lists:seq(1, 20)
+    ),
+    
+    User1 ! close_ws,
+    
+    % close all connections
+    lists:foreach(
+        fun({_, Pid}) ->
+            Pid ! close_ws
+        end,
+        Users
+    ).

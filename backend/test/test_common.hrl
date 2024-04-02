@@ -1,7 +1,7 @@
 -record(user_state, {
     test_name,
     server_name = undefined,
-    supervisor,
+    test_runner,
     conn_pid,
     stream_ref,
     board_id,
