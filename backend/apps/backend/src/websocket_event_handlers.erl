@@ -32,7 +32,7 @@ handle_event(
             {[{text, WelcomeData}], State#websocket_handler_state{
                 sessionToken = SessionToken, sessionRef = SessionRef}};
         {continue, undefined} ->
-            {[{close, <<"session token is not provided">>}], State};
+            {[{close, 4002, <<"session token is not provided">>}], State};
         {continue, SessionToken} when is_binary(SessionToken) ->
             {ok, Session, SessionRef} =
                 board_controller_service:continue_session(Pid, SessionToken),
@@ -45,9 +45,9 @@ handle_event(
             {[{text, WelcomeData}], State#websocket_handler_state{
                 sessionToken = Session#session.sessionToken, sessionRef = SessionRef}};
         {continue, _} ->
-            {[{close, <<"malformed begin event">>}], State};
+            {[{close, 4003, <<"malformed begin event">>}], State};
         {undefined, _} ->
-            {[{close, <<"invalid session type">>}], State}
+            {[{close, 4004, <<"invalid session type">>}], State}
     end;
 handle_event(
         #event{
