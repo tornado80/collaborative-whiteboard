@@ -9,7 +9,7 @@ Use the following command run this project in development mode:
 docker compose up
 ```
 
-Then visit [http://localhost:8000/new](http://localhost:8000/new) to create a collaborative whiteboard. 
+Then visit [http://localhost:8000/](http://localhost:8000/) or [http://localhost:8000/new](http://localhost:8000/new) to create a collaborative whiteboard. 
 If you have already created a whiteboard, you can access it at 
 [http://localhost:8000/boards/:id](http://localhost:8000/boards/:id), where `:id` is the id of the whiteboard.
 
