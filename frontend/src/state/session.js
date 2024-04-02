@@ -147,6 +147,12 @@ export class Session {
                     return
                 }
 
+                if (this._lastAppliedUpdate + 1 !== eventData.updateId) {
+                    this._ready = false
+                    this._fetchInitialState()
+                    return
+                }
+
                 this._lastAppliedUpdate = eventData.updateId
 
                 if (eventData.update.operationType === "delete") {
