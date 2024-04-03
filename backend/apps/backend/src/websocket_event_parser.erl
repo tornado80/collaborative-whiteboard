@@ -180,7 +180,12 @@ payload_to_proplist(
         {<<"intermediate">>, Intermediate},
         {<<"update">>, update_payload_to_proplist(Update)}
     ];
-payload_to_proplist(#user_payload{userId = UserId}) -> [{<<"userId">>, UserId}];
+payload_to_proplist(#user_payload{userId = UserId, userName = UserName, color = Color}) ->
+    [
+        {<<"userId">>, UserId},
+        {<<"userName">>, UserName},
+        {<<"color">>, Color}
+    ];
 payload_to_proplist(
     #reservation_cancelled_payload{reservationId = ReservationId}) ->
     [{<<"reservationId">>, ReservationId}];
