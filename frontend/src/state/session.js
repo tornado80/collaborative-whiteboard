@@ -268,6 +268,7 @@ export class Session {
                     {
                         ...this._state,
                         user: data.onlineUsers.filter(u => u.id === this._userId)[0],
+                        users: data.onlineUsers,
                         objects: data.canvasObjects
                     }
                 )

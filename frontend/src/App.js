@@ -698,8 +698,7 @@ export default class App extends React.Component {
         >
           {/* TODO: For object in this.state?.objects */}
           { this.state.state?.objects?.map(obj => {
-            console.log("RENDERING:", obj)
-
+            //console.log("RENDERING:", obj)
             const o = obj.operation ? obj.operation : obj
             const id = obj.canvasObjectId ? obj.canvasObjectId : obj.id
             switch (obj.canvasObjectType) {
@@ -734,6 +733,12 @@ export default class App extends React.Component {
           />
         </div>
         <div className="comments" style={ { display: this.state.showComments ? 'inline' : 'none' } }>
+          <h2>Users online</h2>
+          {
+            this.state.state?.users?.map(u => {
+              return <p>{ u.name + (u.id === this.state.state?.user?.id ? " (me)" : "") }</p>
+            })
+          }
           <h2>Comments</h2>
           {
             this.state.state?.objects?.filter(o => ["comment", "Comment"].includes(o.canvasObjectType))
