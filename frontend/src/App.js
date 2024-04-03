@@ -431,6 +431,17 @@ export default class App extends React.Component {
         })
         break
 
+      case "comment":
+        this.session.proposeUpdate({
+          canvasObjectType: "comment",
+          operationType: "delete",
+          canvasObjectId: this.selectedReservation.objectId,
+          operation: {
+            canvasObjectOperationType: "deleteComment"
+          }
+        })
+        break
+
       default:
         return
     }
@@ -736,7 +747,7 @@ export default class App extends React.Component {
           <h2>Users online</h2>
           {
             this.state.state?.users?.map(u => {
-              return <p>{ u.name + (u.id === this.state.state?.user?.id ? " (me)" : "") }</p>
+              return <p key={u.id}>{ u.name + (u.id === this.state.state?.user?.id ? " (me)" : "") }</p>
             })
           }
           <h2>Comments</h2>
@@ -746,14 +757,18 @@ export default class App extends React.Component {
               .sort(([o1], [o2]) => o1.timestamp < o2.timestamp)
               .map(([o, id]) => {
 
-              return <div key={id} className="comment">
-                  <div className="comment-timestamp">
-                    { new Date(o.timestamp).toLocaleString() }
-                  </div>
-                  <div className="comment-text">
-                    { o.text }
-                  </div>
-                </div>
+              return <div
+                       key={id}
+                       className={"board-obj comment" + (this.state.state.reservations.find(r => r.objectId === id && r.reservationId) ? " selected" : "")}
+                       onClick={ () => this.state.selectedTool === Tool.Default && this.selectObject(id, "comment") }
+                     >
+                       <div className="comment-timestamp">
+                         { new Date(o.timestamp).toLocaleString() }
+                       </div>
+                       <div className="comment-text">
+                         { o.text }
+                       </div>
+                     </div>
             })
           }
         </div>

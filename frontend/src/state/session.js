@@ -126,9 +126,10 @@ export class Session {
 
             case "boardUpdateSucceeded":
                 if (eventData.update.operationType === "delete") {
+                    console.log("Deletedd sticky Note")
                     return {
                         ...state,
-                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId)],
+                        objects: [...this._state.objects.filter(o => (o.canvasObjectId ? o.canvasObjectId : o.id) !== eventData.update.canvasObjectId)],
                         reservations: [...this._state.reservations.filter(r => r.objectId !== eventData.update.canvasObjectId)]
                     }
                 } else {
@@ -162,7 +163,7 @@ export class Session {
                 if (eventData.update.operationType === "delete") {
                     return {
                         ...state,
-                        objects: [...this._state.objects.filter(o => o.canvasObjectId !== eventData.update.canvasObjectId)],
+                        objects: [...this._state.objects.filter(o => (o.canvasObjectId ? o.canvasObjectId : o.id) !== eventData.update.canvasObjectId)],
                         reservations: [...this._state.reservations.filter(r => r.objectId !== eventData.update.canvasObjectId)]
                     }
                 } else {
