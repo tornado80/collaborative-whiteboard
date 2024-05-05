@@ -1,5 +1,6 @@
-# WhiteBoardC
+# Collaborative Whiteboard
 
+This repository contains the code of our project for Internet Protocols (ELEC-E7320) course at Aalto University.
 
 ## How to run
 
