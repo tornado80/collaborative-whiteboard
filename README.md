@@ -1,6 +1,11 @@
 # Collaborative Whiteboard
 
-This repository contains the code of our project for Internet Protocols (ELEC-E7320) course at Aalto University.
+This repository contains the code of our project for Internet Protocols (ELEC-E7320) course at Aalto University. We, as a team of 3, closely worked together to design the protocol, develop the backend and frontend, test, and deploy our project.
+
+## Team Members
+- Petteri Pulkkinen
+- Sonika Baniya
+- Amirhosein Rajabi
 
 ## How to run
 
