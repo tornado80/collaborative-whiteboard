@@ -624,7 +624,7 @@ do_redo_when_object_exists(Top, Rest, NewUpdateId, Session, SessionRef, NewState
                 undoStack = [Top | Session#session.undoStack],
                 redoStack = Rest}}),
             insert_object_into_ets_and_database(State#state.supervisor_pid, State#state.board_objects_table,
-                ObjectId, ObjectType, Top#update.oldValue, ReservationStatus),
+                ObjectId, ObjectType, Top#update.newValue, ReservationStatus),
             {noreply, NewState};
         create -> % operation can not be create when redoing and object already exists
             % (the old value of create is undefined which does not match the current state of board)
